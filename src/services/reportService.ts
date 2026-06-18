@@ -36,19 +36,21 @@ const reportService =
     getWeeklyReport:
 (
     startDate:string,
-    endDate:string
+    endDate:string,
+    userId?: number
 )=>
     api.get(
-        `/api/report/weekly?startDate=${startDate}&endDate=${endDate}`
+        `/api/report/weekly?startDate=${startDate}&endDate=${endDate}${userId ? `&userId=${userId}` : ""}`
     ),
 
-  getMonthlyReport:
-(
+    getMonthlyReport:
+    (
     month:number,
-    year:number
-)=>
+    year:number,
+    userId: number
+    ) =>
     api.get(
-        `/api/report/monthly?month=${month}&year=${year}`
+        `/api/report/monthly?month=${month}&year=${year}&userId=${userId}`
     ),
 
     exportDaily:
@@ -70,6 +72,12 @@ const reportService =
         downloadExcel(
             `/api/report/export-monthly?month=${month}&year=${year}`,
             `monthly-report-${year}-${month}.xlsx`
+        ),
+
+    getEmployeeAnalytics:
+        (startDate: string, endDate: string) =>
+        api.get(
+            `/api/report/employee-analytics?startDate=${startDate}&endDate=${endDate}`
         ),
 };
 

@@ -7,7 +7,7 @@ const adminLinks = [
   { to: "/admin/daily-report", label: "Daily Report", icon: "📋" },
   { to: "/admin/weekly-report", label: "Weekly Report", icon: "📊" },
   { to: "/admin/monthly-report", label: "Monthly Report", icon: "📈" },
-  { to: "/admin/analytics", label: "Analytics", icon: "🔍" },
+  { to: "/admin/analytics", label: "Employee Analytics", icon: "🔍" },
 ];
 
 const employeeLinks = [

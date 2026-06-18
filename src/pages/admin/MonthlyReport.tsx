@@ -1,4 +1,5 @@
 import { useState } from "react";
+import * as XLSX from "xlsx";
 import type { GridColDef } from "@mui/x-data-grid/models";
 import AppDataGrid from "../../components/common/AppDataGrid";
 import reportService from "../../services/reportService";
@@ -23,17 +24,19 @@ const columns: GridColDef[] = [
 
 function MonthlyReport() {
   const today = new Date();
-  const [month, setMonth]   = useState(today.getMonth() + 1);
-  const [year, setYear]     = useState(today.getFullYear());
-  const [search, setSearch] = useState("");
+  const [month, setMonth]     = useState(today.getMonth() + 1);
+  const [year, setYear]       = useState(today.getFullYear());
+  const [search, setSearch]   = useState("");
   const [loading, setLoading] = useState(false);
   const [reports, setReports] = useState<any[]>([]);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
 
   const searchReport = async () => {
     try {
       setLoading(true);
       const response = await reportService.getMonthlyReport(month, year);
       setReports(response.data);
+      setSelected(new Set());
     } catch {
       showError("Unable To Load Monthly Report");
     } finally {
@@ -44,6 +47,44 @@ function MonthlyReport() {
   const filteredReports = reports.filter(x =>
     x.employeeName?.toLowerCase().includes(search.toLowerCase())
   );
+
+  const toggleSelect = (name: string) => {
+    setSelected(prev => {
+      const next = new Set(prev);
+      next.has(name) ? next.delete(name) : next.add(name);
+      return next;
+    });
+  };
+
+  const toggleAll = () => {
+    const names = filteredReports.map(r => r.employeeName);
+    const allSelected = names.every(n => selected.has(n));
+    setSelected(allSelected ? new Set() : new Set(names));
+  };
+
+  const exportExcel = () => {
+    const toExport = selected.size > 0
+      ? filteredReports.filter(r => selected.has(r.employeeName))
+      : filteredReports;
+
+    const headers = ["Employee", "Week 1", "Week 2", "Week 3", "Week 4", "Week 5", "Total Hours", "Required", "Extra Hours"];
+    const sheetData: any[][] = [headers];
+    toExport.forEach(r => {
+      sheetData.push([r.employeeName, r.week1, r.week2, r.week3, r.week4, r.week5, r.totalWorkingHours, r.requiredHours, r.extraHours]);
+    });
+
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet(sheetData);
+    XLSX.utils.book_append_sheet(wb, ws, "Monthly Report");
+    const wbout = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+    const blob = new Blob([wbout], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `monthly-report-${year}-${month}.xlsx`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   return (
     <div>
@@ -79,8 +120,8 @@ function MonthlyReport() {
               </button>
             </div>
             <div className="col-md-2">
-              <button className="btn btn-success w-100" onClick={() => reportService.exportMonthly(month, year)}>
-                📥 Export Excel
+              <button className="btn btn-success w-100" onClick={exportExcel} disabled={!reports.length}>
+                📥 {selected.size > 0 ? `${selected.size} Export` : "Export Excel"}
               </button>
             </div>
           </div>
@@ -116,7 +157,7 @@ function MonthlyReport() {
       {/* Search + Grid */}
       <div className="card border-0 shadow-sm" style={{ borderRadius: "12px" }}>
         <div className="card-body p-4">
-          <div className="mb-3">
+          <div className="mb-3 d-flex align-items-center gap-3">
             <input
               type="text"
               className="form-control"
@@ -126,7 +167,31 @@ function MonthlyReport() {
               style={{ maxWidth: "320px" }}
             />
           </div>
-          <AppDataGrid rows={filteredReports} columns={columns} loading={loading} />
+          <AppDataGrid
+            rows={filteredReports.map((r, i) => ({ id: i, ...r }))}
+            columns={[
+              { field: "select", headerName: "", width: 60, sortable: false, disableColumnMenu: true,
+                renderHeader: () => (
+                  <input
+                    type="checkbox"
+                    style={{ cursor: "pointer", width: "16px", height: "16px" }}
+                    checked={filteredReports.length > 0 && filteredReports.every(r => selected.has(r.employeeName))}
+                    onChange={toggleAll}
+                  />
+                ),
+                renderCell: (params: any) => (
+                  <input
+                    type="checkbox"
+                    style={{ cursor: "pointer", width: "16px", height: "16px" }}
+                    checked={selected.has(params.row.employeeName)}
+                    onChange={(e) => { e.stopPropagation(); toggleSelect(params.row.employeeName); }}
+                  />
+                )
+              },
+              ...columns,
+            ]}
+            loading={loading}
+          />
         </div>
       </div>
     </div>

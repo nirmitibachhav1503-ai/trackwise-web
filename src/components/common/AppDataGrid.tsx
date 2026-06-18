@@ -11,12 +11,15 @@ interface Props
     columns:GridColDef[];
 
     loading?:boolean;
+
+    getRowClassName?: (params:any) => string;
 }
 
 function AppDataGrid({
     rows,
     columns,
-    loading
+    loading,
+    getRowClassName
 }:Props)
 {
     const getStableRowId =
@@ -73,6 +76,7 @@ function AppDataGrid({
                     25,
                     50
                 ]}
+                getRowClassName={getRowClassName}
                 initialState={{
                     pagination:{
                         paginationModel:{

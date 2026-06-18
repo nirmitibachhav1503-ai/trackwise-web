@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
+import * as XLSX from "xlsx";
 import type { GridColDef } from "@mui/x-data-grid/models";
 import AppDataGrid from "../../components/common/AppDataGrid";
 import DatePicker from "../../components/common/DatePicker";
@@ -16,15 +17,31 @@ const formatTime = (val: string | null) =>
 const formatDate = (val: string | null) =>
   val ? new Date(val).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "--";
 
-const columns: GridColDef[] = [
-  { field: "reportDate",   headerName: "Date",          flex: 1, valueFormatter: (val) => formatDate(val) },
-  { field: "inTime",       headerName: "In Time",       flex: 1, valueFormatter: (val) => formatTime(val) },
-  { field: "outTime",      headerName: "Out Time",      flex: 1, valueFormatter: (val) => formatTime(val) },
-  { field: "breakOut",     headerName: "Break Start",   flex: 1, valueFormatter: (val) => formatTime(val) },
-  { field: "breakIn",      headerName: "Break End",     flex: 1, valueFormatter: (val) => formatTime(val) },
-  { field: "workingHours", headerName: "Working Hours", flex: 1 },
-  { field: "totalHours",   headerName: "Total Hours",   flex: 1 },
-];
+const parseWorkingHours = (val: any): number => {
+  if (val == null || val === "") return 0;
+  const str = String(val).trim();
+  if (str.includes(":")) {
+    const parts = str.split(":");
+    const h = parseInt(parts[0]) || 0;
+    const m = parseInt(parts[1]) || 0;
+    const s = parseInt(parts[2]) || 0;
+    return h + m / 60 + s / 3600;
+  }
+  if (str.includes(".")) {
+    const parts = str.split(".");
+    const h = parseInt(parts[0]) || 0;
+    const m = parseInt(parts[1]) || 0;
+    return h + m / 60;
+  }
+  const num = parseFloat(str);
+  return isNaN(num) ? 0 : num;
+};
+
+const formatHoursToHMM = (hours: number): string => {
+  const h = Math.floor(hours);
+  const m = Math.round((hours - h) * 60);
+  return `${h}:${String(m).padStart(2, "0")}`;
+};
 
 function DailyReport() {
   const today = getTodayKey();
@@ -32,6 +49,60 @@ function DailyReport() {
   const [endDate, setEndDate]     = useState(today);
   const [loading, setLoading]     = useState(false);
   const [reports, setReports]     = useState<any[]>([]);
+
+  const columns: GridColDef[] = useMemo(() => [
+    { field: "reportDate",    headerName: "Date",           flex: 1, valueFormatter: (val) => formatDate(val) },
+    { field: "inTime",        headerName: "In Time",        flex: 1, valueFormatter: (val) => formatTime(val) },
+    { field: "lunchout",      headerName: "Lunch Start",    flex: 1,   valueFormatter: (val) => formatTime(val) },
+    { field: "lunchin",       headerName: "Lunch End",      flex: 1,   valueFormatter: (val) => formatTime(val) },
+    { field: "breakOut",      headerName: "Break Start",    flex: 1, valueFormatter: (val) => formatTime(val) },
+    { field: "breakIn",       headerName: "Break End",      flex: 1, valueFormatter: (val) => formatTime(val) },
+    { field: "outTime",       headerName: "Out Time",       flex: 1, valueFormatter: (val) => formatTime(val) },      
+    { field: "workingHours",  headerName: "Working Hours",  flex: 1 },
+    { field: "requiredHours", headerName: "Required Hours", flex: 1, valueGetter: () => 9 },
+    { field: "extraHours",    headerName: "Extra Hours",    flex: 1,
+      renderCell: (params: any) => {
+        const working = parseWorkingHours(params.row.workingHours);
+        const result = working - 9;
+        const formatted = formatHoursToHMM(Math.abs(result));
+        const sign = result >= 0 ? "" : "-";
+        return <span style={{ color: result >= 0 ? "green" : "red" }}>{sign}{formatted}</span>;
+      }
+    },
+    { field: "remarks",       headerName: "Remarks",        flex: 1.5,
+      renderCell: (params: any) => {
+        const working = parseWorkingHours(params.row.workingHours);
+        if (working === 0) return <span style={{ color: "red", fontWeight: 600 }}>Leave</span>;
+        if (working < 6)   return <span style={{ color: "orange", fontWeight: 600 }}>Half Day</span>;
+        return "";
+      }
+    },
+  ], []);
+
+  const exportExcel = () => {
+    const data = reports.map(r => {
+      const working = parseWorkingHours(r.workingHours);
+      const extra   = working - 9;
+      const sign    = extra >= 0 ? "" : "-";
+      return {
+        "Date":           formatDate(r.reportDate),
+        "In Time":        formatTime(r.inTime),
+        "Lunch Start":    formatTime(r.lunchout),
+        "Lunch End":      formatTime(r.lunchin),
+        "Break Start":    formatTime(r.breakOut),
+        "Break End":      formatTime(r.breakIn),
+        "Out Time":       formatTime(r.outTime),
+        "Working Hours":  r.workingHours || "--",
+        "Required Hours": 9,
+        "Extra Hours":    sign + formatHoursToHMM(Math.abs(extra)),
+        "Remarks":        working === 0 ? "Leave" : working < 6 ? "Half Day" : "",
+      };
+    });
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Daily Report");
+    XLSX.writeFile(wb, `daily-report-${startDate}-${endDate}.xlsx`);
+  };
 
   const search = async () => {
     if (!startDate || !endDate) { showError("Please select both start and end dates"); return; }
@@ -49,20 +120,17 @@ function DailyReport() {
 
   return (
     <div>
+      <style>{`
+        .leave-row { background-color: #ffcccc !important; }
+        .leave-row:hover { background-color: #ffb3b3 !important; }
+        .halfday-row { background-color: #fff3cd !important; }
+        .halfday-row:hover { background-color: #ffe69c !important; }
+      `}</style>
       <div className="d-flex justify-content-between align-items-center mb-4">
         <div>
           <h4 className="fw-bold mb-0">Daily Report</h4>
           <small className="text-muted">View your attendance by date range</small>
         </div>
-      </div>
-
-      {/* Info banner */}
-      <div className="alert alert-info py-2 mb-3 d-flex align-items-center gap-2" style={{ borderRadius: "10px", fontSize: "13px" }}>
-        <span>ℹ️</span>
-        <span>
-          <strong>Working Hours</strong> are the actual hours worked by an employee, calculated by
-          excluding <strong>lunch breaks</strong> and other <strong>short breaks</strong> from the total time spent at work.
-        </span>
       </div>
 
       <div className="card border-0 shadow-sm mb-4" style={{ borderRadius: "12px" }}>
@@ -82,11 +150,7 @@ function DailyReport() {
               </button>
             </div>
             <div className="col-md-2">
-              <button
-                className="btn btn-success w-100"
-                onClick={() => reportService.exportDailyRange(startDate, endDate)}
-                disabled={!startDate || !endDate}
-              >
+              <button className="btn btn-success w-100" onClick={exportExcel} disabled={!reports.length}>
                 Export Excel
               </button>
             </div>
@@ -99,7 +163,17 @@ function DailyReport() {
       ) : (
         <div className="card border-0 shadow-sm" style={{ borderRadius: "12px" }}>
           <div className="card-body p-0">
-            <AppDataGrid rows={reports} columns={columns} loading={loading} />
+            <AppDataGrid
+              rows={reports}
+              columns={columns}
+              loading={loading}
+              getRowClassName={(params) => {
+                const working = parseWorkingHours(params.row.workingHours);
+                if (working === 0) return "leave-row";
+                if (working < 6)   return "halfday-row";
+                return "";
+              }}
+            />
           </div>
         </div>
       )}

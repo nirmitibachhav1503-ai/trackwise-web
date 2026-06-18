@@ -4,9 +4,18 @@ import {
 
 import reportService
 from "../../services/reportService";
+import { useAuth }
+from "../../context/AuthContext";
 
 function MonthlyReport()
 {
+    const { user }
+    = useAuth();
+
+    const storedUser = user || (localStorage.getItem("user") ? JSON.parse(localStorage.getItem("user")!) : null);
+
+    const userId = storedUser?.userId;
+
     const [month,
         setMonth]
         = useState(1);
@@ -29,11 +38,16 @@ function MonthlyReport()
     const search =
         async () =>
     {
+        if (!userId) {
+            showError("User not found. Please login again.");
+            return;
+        }
         const response =
             await reportService
             .getMonthlyReport(
                 month,
-                year
+                year,
+                userId
             );
 
         setData(
@@ -97,6 +111,14 @@ function MonthlyReport()
                         Total
                     </th>
 
+                    <th>
+                        Required Hours
+                    </th>
+
+                    <th>
+                        Extra Hours
+                    </th>
+
                 </tr>
 
                 </thead>
@@ -118,6 +140,8 @@ function MonthlyReport()
                                     <td key={w}>{item[w]}</td>
                                 ))}
                                 <td>{item.totalWorkingHours}</td>
+                                <td>{item.requiredHours || "-"}</td>
+                                <td>{item.extraHours || "-"}</td>
 
                             </tr>
                         )

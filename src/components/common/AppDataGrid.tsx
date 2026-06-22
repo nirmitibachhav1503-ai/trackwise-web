@@ -13,13 +13,16 @@ interface Props
     loading?:boolean;
 
     getRowClassName?: (params:any) => string;
+
+    hideFooterPagination?: boolean;
 }
 
 function AppDataGrid({
     rows,
     columns,
     loading,
-    getRowClassName
+    getRowClassName,
+    hideFooterPagination
 }:Props)
 {
     const getStableRowId =
@@ -77,6 +80,7 @@ function AppDataGrid({
                     50
                 ]}
                 getRowClassName={getRowClassName}
+                hideFooterPagination={hideFooterPagination}
                 initialState={{
                     pagination:{
                         paginationModel:{

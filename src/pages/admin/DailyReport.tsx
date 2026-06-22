@@ -1,4 +1,5 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
+import { useAuth } from "../../context/AuthContext";
 import * as XLSX from "xlsx";
 import type { GridColDef } from "@mui/x-data-grid/models";
 import AppDataGrid from "../../components/common/AppDataGrid";
@@ -36,6 +37,15 @@ function DailyReport() {
   const [loading, setLoading]     = useState(false);
   const [reports, setReports]     = useState<any[]>([]);
   const [selected, setSelected]   = useState<Set<string>>(new Set());
+  const [pageSize, setPageSize]       = useState(5);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalEmployees, setTotalEmployees] = useState(0);
+  const { user } = useAuth();
+  const isAdmin = user?.role?.toLowerCase() === "admin";
+
+  useEffect(() => {
+    if (isAdmin && reports.length > 0) searchReport();
+  }, [currentPage, pageSize]);
 
   const columns: GridColDef[] = useMemo(() => [
     { field: "reportDate",    headerName: "Date",           flex: 1,   valueFormatter: (val) => formatDate(val) },
@@ -83,10 +93,16 @@ function DailyReport() {
     if (!startDate || !endDate) { showError("Please select both start and end dates"); return; }
     try {
       setLoading(true);
-      const response = await reportService.getDailyRangeReport(startDate, endDate);
+      const response = await reportService.getDailyRangeReport(
+        startDate, endDate,
+        isAdmin ? currentPage : undefined,
+        isAdmin ? pageSize : undefined
+      );
       const data = Array.isArray(response.data) ? response.data : response.data ? [response.data] : [];
+      setTotalEmployees(data[0]?.totalCount ?? 0);
       setReports(data);
       setSelected(new Set());
+      if (!isAdmin) setCurrentPage(1);
     } catch {
       showError("Unable To Load Report");
     } finally {
@@ -105,6 +121,13 @@ function DailyReport() {
   const employeeNames = Object.keys(grouped).filter(name =>
     name.toLowerCase().includes(search.toLowerCase())
   );
+
+  const totalPages = isAdmin
+    ? Math.max(1, Math.ceil(totalEmployees / pageSize))
+    : Math.max(1, Math.ceil(employeeNames.length / pageSize));
+  const pagedNames = isAdmin
+    ? employeeNames
+    : employeeNames.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
   const totalPresent = reports.filter(r => parseWorkingHours(r.workingHours) > 0).length;
   const totalAbsent  = reports.filter(r => parseWorkingHours(r.workingHours) === 0).length;
@@ -205,7 +228,7 @@ function DailyReport() {
             className="form-control"
             placeholder="🔍 Search employee..."
             value={search}
-            onChange={e => setSearch(e.target.value)}
+            onChange={e => { setSearch(e.target.value); setCurrentPage(1); }}
             style={{ maxWidth: "320px" }}
           />
         </div>
@@ -224,7 +247,7 @@ function DailyReport() {
           <label htmlFor="select-all" className="mb-0 text-muted small" style={{ cursor: "pointer" }}>Select All</label>
         </div>
       )}
-      {employeeNames.map(name => (
+      {pagedNames.map(name => (
         <div className="card border-0 shadow-sm mb-4" key={name} style={{ borderRadius: "12px" }}>
           <div className="card-header fw-semibold py-3 px-4 d-flex align-items-center gap-2" style={{ background: "#f4f6f9" }}>
             <input
@@ -250,6 +273,37 @@ function DailyReport() {
           </div>
         </div>
       ))}
+
+      {/* Pagination */}
+      {employeeNames.length > 0 && (
+        <div className="d-flex align-items-center justify-content-between mt-2 mb-4 flex-wrap gap-2">
+          <div className="d-flex align-items-center gap-2">
+            <select
+              className="form-select form-select-sm"
+              style={{ width: "80px" }}
+              value={pageSize}
+              onChange={e => { setPageSize(Number(e.target.value)); setCurrentPage(1); }}
+            >
+              {[1, 5, 10, 25].map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
+          <nav>
+            <ul className="pagination pagination-sm mb-0">
+              <li className={`page-item ${currentPage === 1 ? "disabled" : ""}`}>
+                <button className="page-link" onClick={() => setCurrentPage(p => p - 1)}>‹</button>
+              </li>
+              {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => (
+                <li key={p} className={`page-item ${p === currentPage ? "active" : ""}`}>
+                  <button className="page-link" onClick={() => setCurrentPage(p)}>{p}</button>
+                </li>
+              ))}
+              <li className={`page-item ${currentPage === totalPages ? "disabled" : ""}`}>
+                <button className="page-link" onClick={() => setCurrentPage(p => p + 1)}>›</button>
+              </li>
+            </ul>
+          </nav>
+        </div>
+      )}
 
       {!loading && reports.length === 0 && startDate && endDate && (
         <div className="alert alert-info">No report data found for the selected date range.</div>

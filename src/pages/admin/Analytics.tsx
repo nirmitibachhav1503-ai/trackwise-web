@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import * as XLSX from "xlsx";
 import reportService from "../../services/reportService";
 import { showError } from "../../utils/toast";
@@ -47,6 +47,9 @@ function Analytics() {
   const [loading, setLoading] = useState(false);
   const [reports, setReports] = useState<any[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [pageSize, setPageSize]       = useState(5);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalEmployees, setTotalEmployees] = useState(0);
 
   const getDateRange = () => {
     const start = `${year}-${String(month).padStart(2, "0")}-01`;
@@ -55,12 +58,16 @@ function Analytics() {
     return { start, end };
   };
 
-  const searchReport = async () => {
+  const fetchPage = async (pageNo: number, size: number) => {
     try {
       setLoading(true);
       const { start, end } = getDateRange();
-      const response = await reportService.getEmployeeAnalytics(start, end);
-      setReports(Array.isArray(response.data) ? response.data : response.data ? [response.data] : []);
+      const response = await reportService.getEmployeeAnalytics(start, end, pageNo, size);
+      const data = Array.isArray(response.data)
+        ? response.data
+        : response.data ? [response.data] : [];
+      setTotalEmployees(data[0]?.totalCount ?? 0);
+      setReports(data);
       setSelected(new Set());
     } catch {
       showError("Unable To Load Analytics");
@@ -68,6 +75,19 @@ function Analytics() {
       setLoading(false);
     }
   };
+
+  const searchReport = async () => {
+    await fetchPage(1, pageSize);
+  };
+
+  const goToPage = (page: number) => {
+    setCurrentPage(page);
+    fetchPage(page, pageSize);
+  };
+
+  useEffect(() => {
+    if (reports.length > 0) fetchPage(currentPage, pageSize);
+  }, [currentPage, pageSize]);
 
   const filtered = reports.filter(r =>
     (r.employeeName || "").toLowerCase().includes(search.toLowerCase())
@@ -172,7 +192,7 @@ function Analytics() {
       </div>
 
       {/* Search */}
-      {reports.length > 0 && (
+      {totalEmployees > 0 && (
         <div className="mb-3">
           <input
             type="text"
@@ -236,6 +256,41 @@ function Analytics() {
               </tbody>
             </table>
           </div>
+        </div>
+      )}
+
+      {filtered.length > 0 && (
+        <div className="d-flex align-items-center justify-content-between mt-3 flex-wrap gap-2">
+          <div className="d-flex align-items-center gap-2">
+            <select
+              className="form-select form-select-sm"
+              style={{ width: "80px" }}
+              value={pageSize}
+              onChange={e => {
+                const newSize = Number(e.target.value);
+                setPageSize(newSize);
+                setCurrentPage(1);
+                fetchPage(1, newSize);
+              }}
+            >
+              {[1, 5, 10, 25].map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
+          <nav>
+            <ul className="pagination pagination-sm mb-0">
+              <li className={`page-item ${currentPage === 1 ? "disabled" : ""}`}>
+                <button className="page-link" onClick={() => goToPage(currentPage - 1)}>‹</button>
+              </li>
+              {Array.from({ length: Math.max(1, Math.ceil(totalEmployees / pageSize)) }, (_, i) => i + 1).map(p => (
+                <li key={p} className={`page-item ${p === currentPage ? "active" : ""}`}>
+                  <button className="page-link" onClick={() => goToPage(p)}>{p}</button>
+                </li>
+              ))}
+              <li className={`page-item ${currentPage === Math.max(1, Math.ceil(totalEmployees / pageSize)) ? "disabled" : ""}`}>
+                <button className="page-link" onClick={() => goToPage(currentPage + 1)}>›</button>
+              </li>
+            </ul>
+          </nav>
         </div>
       )}
 

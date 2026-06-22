@@ -21,9 +21,9 @@ const reportService =
         ),
 
     getDailyRangeReport:
-        (startDate: string, endDate: string) =>
+        (startDate: string, endDate: string, pageNo?: number, pageSize?: number) =>
         api.get(
-            `/api/report/daily-range?startDate=${startDate}&endDate=${endDate}`
+            `/api/report/daily-range?startDate=${startDate}&endDate=${endDate}${pageNo != null ? `&pageNo=${pageNo}` : ""}${pageSize != null ? `&pageSize=${pageSize}` : ""}`
         ),
 
     exportDailyRange:
@@ -34,23 +34,27 @@ const reportService =
         ),
 
     getWeeklyReport:
-(
+    (
     startDate:string,
     endDate:string,
-    userId?: number
-)=>
+    userId?: number,
+    pageNo?: number,
+    pageSize?: number
+    )=>
     api.get(
-        `/api/report/weekly?startDate=${startDate}&endDate=${endDate}${userId ? `&userId=${userId}` : ""}`
+        `/api/report/weekly?startDate=${startDate}&endDate=${endDate}${userId != null ? `&userId=${userId}` : ""}${pageNo != null ? `&pageNo=${pageNo}` : ""}${pageSize != null ? `&pageSize=${pageSize}` : ""}`
     ),
 
     getMonthlyReport:
     (
     month:number,
     year:number,
-    userId: number
+    userId?: number,
+    pageNo?: number,
+    pageSize?: number
     ) =>
     api.get(
-        `/api/report/monthly?month=${month}&year=${year}&userId=${userId}`
+        `/api/report/monthly?month=${month}&year=${year}${userId != null ? `&userId=${userId}` : ""}${pageNo != null ? `&pageNo=${pageNo}` : ""}${pageSize != null ? `&pageSize=${pageSize}` : ""}`
     ),
 
     exportDaily:
@@ -75,9 +79,9 @@ const reportService =
         ),
 
     getEmployeeAnalytics:
-        (startDate: string, endDate: string) =>
+        (startDate: string, endDate: string, pageNo?: number, pageSize?: number) =>
         api.get(
-            `/api/report/employee-analytics?startDate=${startDate}&endDate=${endDate}`
+            `/api/report/employee-analytics?startDate=${startDate}&endDate=${endDate}${pageNo != null ? `&pageNo=${pageNo}` : ""}${pageSize != null ? `&pageSize=${pageSize}` : ""}`
         ),
 };
 

@@ -77,22 +77,37 @@ function WeeklyReport() {
   const [search, setSearch]       = useState("");
   const [loading, setLoading]     = useState(false);
   const [reports, setReports]     = useState<any[]>([]);
-  const [page, setPage]           = useState(0);
+  const [pageSize, setPageSize]       = useState(5);
+  const [currentPage, setCurrentPage] = useState(1);
   const [selected, setSelected]   = useState<Set<string>>(new Set());
 
-  const searchReport = async () => {
-    if (!startDate || !endDate) { showError("Please select both start and end dates"); return; }
+  const [totalEmployees, setTotalEmployees] = useState(0);
+
+  const fetchPage = async (pageNo: number, size: number) => {
+    if (!startDate || !endDate) return;
     try {
       setLoading(true);
-      setPage(0);
-      const response = await reportService.getWeeklyReport(startDate, endDate);
-      setReports(Array.isArray(response.data) ? response.data : [response.data]);
+      const response = await reportService.getWeeklyReport(startDate, endDate, undefined, pageNo, size);
+      const data = Array.isArray(response.data)
+        ? response.data
+        : response.data ? [response.data] : [];
+      setTotalEmployees(data[0]?.totalCount ?? 0);
+      setReports(data);
       setSelected(new Set());
     } catch {
       showError("Unable To Load Weekly Report");
     } finally {
       setLoading(false);
     }
+  };
+
+  const searchReport = async () => {
+    await fetchPage(1, pageSize);
+  };
+
+  const goToPage = (page: number) => {
+    setCurrentPage(page);
+    fetchPage(page, pageSize);
   };
 
   const toggleSelect = (name: string) => {
@@ -169,11 +184,7 @@ function WeeklyReport() {
     name.toLowerCase().includes(search.toLowerCase())
   );
 
-  const totalPages  = employeeNames.length;
-  const currentName = employeeNames[page];
-  const weekGroups  = currentName
-    ? buildWeekGroups(startDate, endDate, grouped[currentName])
-    : [];
+  const paginatedNames = employeeNames;
 
   return (
     <div>
@@ -211,10 +222,10 @@ function WeeklyReport() {
       </div>
 
       {/* Summary Cards */}
-      {employeeNames.length > 0 && (
+      {totalEmployees > 0 && (
         <div className="row g-3 mb-4">
           {[
-            { title: "Total Employees", value: employeeNames.length, icon: "👥", color: "#4361ee" },
+            { title: "Total Employees", value: totalEmployees, icon: "👥", color: "#4361ee" },
             { title: "Weekly Records",  value: reports.length,       icon: "📊", color: "#2ec4b6" },
             { title: "Hours Tracked",   value: reports.length,       icon: "🕐", color: "#f4a261" },
           ].map(card => (
@@ -244,7 +255,7 @@ function WeeklyReport() {
             className="form-control"
             placeholder="🔍 Search employee..."
             value={search}
-            onChange={e => { setSearch(e.target.value); setPage(0); }}
+            onChange={e => setSearch(e.target.value)}
             style={{ maxWidth: "320px" }}
           />
           <div className="d-flex align-items-center gap-2">
@@ -261,106 +272,117 @@ function WeeklyReport() {
       )}
 
       {/* Employee Week Tables */}
-      {currentName && (
-        <>
-          {/* Employee header + pagination */}
-          <div className="d-flex justify-content-between align-items-center mb-3">
-            <div className="d-flex align-items-center gap-2">
-              <input
-                type="checkbox"
-                style={{ cursor: "pointer", width: "16px", height: "16px" }}
-                checked={selected.has(currentName)}
-                onChange={(e) => { e.stopPropagation(); toggleSelect(currentName); }}
-              />
-              <h6 className="fw-bold mb-0">👤 {currentName}</h6>
-            </div>
-            <div className="d-flex align-items-center gap-2">
-              <button className="btn btn-outline-secondary btn-sm" onClick={() => setPage(p => p - 1)} disabled={page === 0}>
-                ‹ Prev
-              </button>
-              <span className="text-muted small">Employee {page + 1} of {totalPages}</span>
-              <button className="btn btn-outline-secondary btn-sm" onClick={() => setPage(p => p + 1)} disabled={page >= totalPages - 1}>
-                Next ›
-              </button>
-            </div>
-          </div>
-
-          {weekGroups.map((group, groupIndex) => {
-            const firstDate = group.days.find(d => d.date)?.date;
-            const lastDate = [...group.days].reverse().find(d => d.date)?.date;
-            return (
-              <div className="card border-0 shadow-sm mb-4" key={groupIndex} style={{ borderRadius: "12px" }}>
-                <div className="card-header fw-semibold py-3 px-4" style={{ background: "#f4f6f9" }}>
-                  Week: {firstDate ? formatDate(firstDate) : "-"} – {lastDate ? formatDate(lastDate) : "-"}
-                </div>
-                <div className="card-body p-0">
-                  <table className="table table-hover mb-0">
-                    <thead>
-                      <tr>
-                        {group.days.map(({ date, field, label }) => (
-                          <th key={field} className="px-4 py-3">{label} {date ? `(${formatDate(date)})` : ""}</th>
-                        ))}
-                        <th className="px-4 py-3">Total Hours</th>
-                        <th className="px-4 py-3">Actual Hours</th>
-                        <th className="px-4 py-3">Extra Hours</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr>
-                        {group.days.map(({ field }) => {
-                          const val = group.row?.[field];
-                          const mins = toMinutes(val);
-                          const isLeave   = !val || mins === 0;
-                          const isHalfDay = !isLeave && mins < 6 * 60;
-                          return (
-                            <td key={field} className="px-4 py-3">
-                              {isLeave ? (
-                                <span style={{ color: "#dc3545", fontWeight: 600 }}>Leave</span>
-                              ) : (
-                                <>
-                                  {parseTimeFromMinutes(group.row?.[field + "Minutes"]) ?? val}
-                                  {isHalfDay && (
-                                    <><br /><span style={{ color: "#ffc107", fontWeight: 600 }}>Half Day</span></>
-                                  )}
-                                </>
-                              )}
-                            </td>
-                          );
-                        })}
-                        <td className="px-4 py-3">{group.row?.totalWorkingHours || "-"}</td>
-                        <td className="px-4 py-3">{toHHMM(group.days.length * 9 * 60)}</td>
-                        <td className="px-4 py-3">
-                          {group.row?.totalWorkingHours
-                            ? toHHMM(toMinutes(group.row.totalWorkingHours) - group.days.length * 9 * 60)
-                            : "-"}
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
+      {paginatedNames.map(name => {
+        const weekGroups = buildWeekGroups(startDate, endDate, grouped[name]);
+        return (
+          <>
+            {/* Employee header */}
+            <div className="d-flex justify-content-between align-items-center mb-3">
+              <div className="d-flex align-items-center gap-2">
+                <input
+                  type="checkbox"
+                  style={{ cursor: "pointer", width: "16px", height: "16px" }}
+                  checked={selected.has(name)}
+                  onChange={(e) => { e.stopPropagation(); toggleSelect(name); }}
+                />
+                <h6 className="fw-bold mb-0">👤 {name}</h6>
               </div>
-            );
-          })}
+            </div>
 
-          {/* Bottom pagination */}
-          <div className="d-flex justify-content-center align-items-center gap-2 mt-2 mb-4">
-            <button className="btn btn-outline-secondary btn-sm" onClick={() => setPage(p => p - 1)} disabled={page === 0}>
-              ‹ Prev
-            </button>
-            {employeeNames.map((_, i) => (
-              <button
-                key={i}
-                className={`btn btn-sm ${i === page ? "btn-primary" : "btn-outline-secondary"}`}
-                onClick={() => setPage(i)}
-              >
-                {i + 1}
-              </button>
-            ))}
-            <button className="btn btn-outline-secondary btn-sm" onClick={() => setPage(p => p + 1)} disabled={page >= totalPages - 1}>
-              Next ›
-            </button>
+            {weekGroups.map((group, groupIndex) => {
+              const firstDate = group.days.find(d => d.date)?.date;
+              const lastDate = [...group.days].reverse().find(d => d.date)?.date;
+              return (
+                <div className="card border-0 shadow-sm mb-4" key={groupIndex} style={{ borderRadius: "12px" }}>
+                  <div className="card-header fw-semibold py-3 px-4" style={{ background: "#f4f6f9" }}>
+                    Week: {firstDate ? formatDate(firstDate) : "-"} – {lastDate ? formatDate(lastDate) : "-"}
+                  </div>
+                  <div className="card-body p-0">
+                    <table className="table table-hover mb-0">
+                      <thead>
+                        <tr>
+                          {group.days.map(({ date, field, label }) => (
+                            <th key={field} className="px-4 py-3">{label} {date ? `(${formatDate(date)})` : ""}</th>
+                          ))}
+                          <th className="px-4 py-3">Total Hours</th>
+                          <th className="px-4 py-3">Actual Hours</th>
+                          <th className="px-4 py-3">Extra Hours</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr>
+                          {group.days.map(({ field }) => {
+                            const val = group.row?.[field];
+                            const mins = toMinutes(val);
+                            const isLeave   = !val || mins === 0;
+                            const isHalfDay = !isLeave && mins < 6 * 60;
+                            return (
+                              <td key={field} className="px-4 py-3">
+                                {isLeave ? (
+                                  <span style={{ color: "#dc3545", fontWeight: 600 }}>Leave</span>
+                                ) : (
+                                  <>
+                                    {parseTimeFromMinutes(group.row?.[field + "Minutes"]) ?? val}
+                                    {isHalfDay && (
+                                      <><br /><span style={{ color: "#ffc107", fontWeight: 600 }}>Half Day</span></>
+                                    )}
+                                  </>
+                                )}
+                              </td>
+                            );
+                          })}
+                          <td className="px-4 py-3">{group.row?.totalWorkingHours || "-"}</td>
+                          <td className="px-4 py-3">{toHHMM(group.days.length * 9 * 60)}</td>
+                          <td className="px-4 py-3">
+                            {group.row?.totalWorkingHours
+                              ? toHHMM(toMinutes(group.row.totalWorkingHours) - group.days.length * 9 * 60)
+                              : "-"}
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              );
+            })}
+          </>
+        );
+      })}
+
+      {/* Bottom pagination */}
+      {paginatedNames.length > 0 && (
+        <div className="d-flex align-items-center justify-content-between mt-3 flex-wrap gap-2">
+          <div className="d-flex align-items-center gap-2">
+            <select
+              className="form-select form-select-sm"
+              style={{ width: "80px" }}
+              value={pageSize}
+              onChange={e => {
+                const newSize = Number(e.target.value);
+                setPageSize(newSize);
+                setCurrentPage(1);
+                fetchPage(1, newSize);
+              }}
+            >
+              {[1, 5, 10, 25].map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
           </div>
-        </>
+          <nav>
+            <ul className="pagination pagination-sm mb-0">
+              <li className={`page-item ${currentPage === 1 ? "disabled" : ""}`}>
+                <button className="page-link" onClick={() => goToPage(currentPage - 1)}>‹</button>
+              </li>
+              {Array.from({ length: Math.max(1, Math.ceil(totalEmployees / pageSize)) }, (_, i) => i + 1).map(p => (
+                <li key={p} className={`page-item ${p === currentPage ? "active" : ""}`}>
+                  <button className="page-link" onClick={() => goToPage(p)}>{p}</button>
+                </li>
+              ))}
+              <li className={`page-item ${currentPage === Math.max(1, Math.ceil(totalEmployees / pageSize)) ? "disabled" : ""}`}>
+                <button className="page-link" onClick={() => goToPage(currentPage + 1)}>›</button>
+              </li>
+            </ul>
+          </nav>
+        </div>
       )}
 
       {!loading && reports.length === 0 && startDate && endDate && (

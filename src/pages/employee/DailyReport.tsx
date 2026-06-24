@@ -4,6 +4,7 @@ import type { GridColDef } from "@mui/x-data-grid/models";
 import AppDataGrid from "../../components/common/AppDataGrid";
 import DatePicker from "../../components/common/DatePicker";
 import reportService from "../../services/reportService";
+import holidayService from "../../services/holidayService";
 import { showError } from "../../utils/toast";
 
 const getTodayKey = () => {
@@ -43,12 +44,60 @@ const formatHoursToHMM = (hours: number): string => {
   return `${h}:${String(m).padStart(2, "0")}`;
 };
 
+const getDateKey = (val: string | null): string => val ? val.slice(0, 10) : "";
+
+const isOfficialOffDay = (dateStr: string): boolean => {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const date = new Date(y, m - 1, d);
+  if (date.getDay() === 0) return true;
+  if (date.getDay() === 6) {
+    const weekOfMonth = Math.ceil(d / 7);
+    return weekOfMonth === 1 || weekOfMonth === 3;
+  }
+  return false;
+};
+
+const isWorkingDay = (dateStr: string): boolean => {
+  return !isOfficialOffDay(dateStr);
+};
+
+const getLocalDateKey = (date: Date): string => {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+};
+
+const buildSyntheticDay = (dateKey: string, remarks: "Leave" | "Holiday") => ({
+  id: `${remarks.toLowerCase()}-${dateKey}`,
+  reportDate: dateKey + "T00:00:00",
+  workingHours: "00:00",
+  workingMinutes: 0,
+  totalMinutes: 0,
+  totalHours: "00:00",
+  inTime: null,
+  outTime: null,
+  lunchout: null,
+  lunchin: null,
+  breakOut: null,
+  breakIn: null,
+  remarks
+});
+
 function DailyReport() {
   const today = getTodayKey();
   const [startDate, setStartDate] = useState(today);
   const [endDate, setEndDate]     = useState(today);
   const [loading, setLoading]     = useState(false);
   const [reports, setReports]     = useState<any[]>([]);
+  const [holidayDates, setHolidayDates] = useState<Set<string>>(new Set());
+
+  const isHoliday = (date: string | null): boolean => holidayDates.has(getDateKey(date));
+  const isOfficialOff = (date: string | null): boolean => {
+    const dateKey = getDateKey(date);
+    return !!dateKey && isOfficialOffDay(dateKey);
+  };
+  const getRequiredHours = (date: string | null): number => isHoliday(date) || isOfficialOff(date) ? 0 : 9;
 
   const columns: GridColDef[] = useMemo(() => [
     { field: "reportDate",    headerName: "Date",           flex: 1, valueFormatter: (val) => formatDate(val) },
@@ -59,11 +108,11 @@ function DailyReport() {
     { field: "breakIn",       headerName: "Break End",      flex: 1, valueFormatter: (val) => formatTime(val) },
     { field: "outTime",       headerName: "Out Time",       flex: 1, valueFormatter: (val) => formatTime(val) },      
     { field: "workingHours",  headerName: "Working Hours",  flex: 1 },
-    { field: "requiredHours", headerName: "Required Hours", flex: 1, valueGetter: () => 9 },
+    { field: "requiredHours", headerName: "Required Hours", flex: 1, valueGetter: (_value, row) => getRequiredHours(row.reportDate) === 0 ? "00:00" : "09:00" },
     { field: "extraHours",    headerName: "Extra Hours",    flex: 1,
       renderCell: (params: any) => {
         const working = parseWorkingHours(params.row.workingHours);
-        const result = working - 9;
+        const result = working - getRequiredHours(params.row.reportDate);
         const formatted = formatHoursToHMM(Math.abs(result));
         const sign = result >= 0 ? "" : "-";
         return <span style={{ color: result >= 0 ? "green" : "red" }}>{sign}{formatted}</span>;
@@ -72,17 +121,20 @@ function DailyReport() {
     { field: "remarks",       headerName: "Remarks",        flex: 1.5,
       renderCell: (params: any) => {
         const working = parseWorkingHours(params.row.workingHours);
+        if (isHoliday(params.row.reportDate)) return <span style={{ color: "#0d6efd", fontWeight: 600 }}>Holiday</span>;
+        if (isOfficialOff(params.row.reportDate)) return <span style={{ color: "#6c757d", fontWeight: 600 }}>Official Off</span>;
         if (working === 0) return <span style={{ color: "red", fontWeight: 600 }}>Leave</span>;
         if (working < 6)   return <span style={{ color: "orange", fontWeight: 600 }}>Half Day</span>;
         return "";
       }
     },
-  ], []);
+  ], [holidayDates]);
 
   const exportExcel = () => {
     const data = reports.map(r => {
       const working = parseWorkingHours(r.workingHours);
-      const extra   = working - 9;
+      const required = getRequiredHours(r.reportDate);
+      const extra   = working - required;
       const sign    = extra >= 0 ? "" : "-";
       return {
         "Date":           formatDate(r.reportDate),
@@ -93,9 +145,9 @@ function DailyReport() {
         "Break End":      formatTime(r.breakIn),
         "Out Time":       formatTime(r.outTime),
         "Working Hours":  r.workingHours || "--",
-        "Required Hours": 9,
+        "Required Hours": required === 0 ? "00:00" : "09:00",
         "Extra Hours":    sign + formatHoursToHMM(Math.abs(extra)),
-        "Remarks":        working === 0 ? "Leave" : working < 6 ? "Half Day" : "",
+        "Remarks":        isHoliday(r.reportDate) ? "Holiday" : isOfficialOff(r.reportDate) ? "Official Off" : working === 0 ? "Leave" : working < 6 ? "Half Day" : "",
       };
     });
     const ws = XLSX.utils.json_to_sheet(data);
@@ -109,8 +161,38 @@ function DailyReport() {
     if (startDate > endDate)    { showError("Start date must be before end date"); return; }
     try {
       setLoading(true);
-      const response = await reportService.getDailyRangeReport(startDate, endDate);
-      setReports(Array.isArray(response.data) ? response.data : response.data ? [response.data] : []);
+      const year = Number(startDate.slice(0, 4));
+      const [response, holidaysResponse] = await Promise.all([
+        reportService.getDailyRangeReport(startDate, endDate),
+        holidayService.getHolidays(year)
+      ]);
+      const data = Array.isArray(response.data) ? response.data : response.data ? [response.data] : [];
+      const holidays = Array.isArray(holidaysResponse.data) ? holidaysResponse.data : [];
+      const holidaySet = new Set<string>(holidays.map((h: any) => getDateKey(h.holidayDate)));
+      const reportMap = new Map<string, any>();
+      data.forEach((r: any) => {
+        reportMap.set(getDateKey(r.reportDate), r);
+      });
+
+      const filledReports: any[] = [];
+      const current = new Date(startDate + "T00:00:00");
+      const endDateObj = new Date(endDate + "T00:00:00");
+
+      while (current <= endDateObj) {
+        const dateKey = getLocalDateKey(current);
+        const existing = reportMap.get(dateKey);
+        if (existing) {
+          filledReports.push(existing);
+        } else if (holidaySet.has(dateKey)) {
+          filledReports.push(buildSyntheticDay(dateKey, "Holiday"));
+        } else if (isWorkingDay(dateKey)) {
+          filledReports.push(buildSyntheticDay(dateKey, "Leave"));
+        }
+        current.setDate(current.getDate() + 1);
+      }
+
+      setHolidayDates(holidaySet);
+      setReports(filledReports.sort((a, b) => String(a.reportDate).localeCompare(String(b.reportDate))));
     } catch {
       showError("Unable To Load Report");
     } finally {
@@ -123,6 +205,10 @@ function DailyReport() {
       <style>{`
         .leave-row { background-color: #ffcccc !important; }
         .leave-row:hover { background-color: #ffb3b3 !important; }
+        .holiday-row { background-color: #dbeafe !important; }
+        .holiday-row:hover { background-color: #bfdbfe !important; }
+        .official-off-row { background-color: #f1f3f5 !important; }
+        .official-off-row:hover { background-color: #e9ecef !important; }
         .halfday-row { background-color: #fff3cd !important; }
         .halfday-row:hover { background-color: #ffe69c !important; }
       `}</style>
@@ -169,6 +255,8 @@ function DailyReport() {
               loading={loading}
               getRowClassName={(params) => {
                 const working = parseWorkingHours(params.row.workingHours);
+                if (isHoliday(params.row.reportDate)) return "holiday-row";
+                if (isOfficialOff(params.row.reportDate)) return "official-off-row";
                 if (working === 0) return "leave-row";
                 if (working < 6)   return "halfday-row";
                 return "";

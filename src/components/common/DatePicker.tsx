@@ -1,7 +1,8 @@
 import { useRef } from "react";
+import { FaCalendarAlt } from "react-icons/fa";
 
 interface Props {
-  value: string; // yyyy-MM-dd
+  value: string;
   onChange: (val: string) => void;
   className?: string;
   style?: React.CSSProperties;
@@ -9,7 +10,12 @@ interface Props {
 
 const toDisplay = (iso: string) => {
   if (!iso) return "";
-  const [y, m, d] = iso.split("-");
+  const [y, m, d] = iso.slice(0, 10).split("-");
+
+  if (!y || !m || !d) {
+    return "";
+  }
+
   return `${d}/${m}/${y}`;
 };
 
@@ -46,7 +52,6 @@ function DatePicker({ value, onChange, className = "form-control", style }: Prop
 
   return (
     <div style={{ position: "relative", display: "inline-block", width: "100%" }}>
-      {/* Visible text input showing dd/mm/yyyy */}
       <input
         type="text"
         className={className}
@@ -58,7 +63,7 @@ function DatePicker({ value, onChange, className = "form-control", style }: Prop
         onChange={handleTextChange}
         onBlur={handleBlur}
       />
-      {/* Hidden native date input for the calendar icon */}
+
       <input
         ref={hiddenRef}
         type="date"
@@ -71,17 +76,17 @@ function DatePicker({ value, onChange, className = "form-control", style }: Prop
           cursor: "pointer", border: "none", padding: 0,
         }}
       />
-      {/* Calendar icon overlay */}
+
       <span
         onClick={() => hiddenRef.current?.showPicker?.()}
         style={{
           position: "absolute", right: "8px", top: "50%",
           transform: "translateY(-50%)",
-          cursor: "pointer", pointerEvents: "none",
+          cursor: "pointer",
           color: "#6c757d", fontSize: "15px",
         }}
       >
-        📅
+        <FaCalendarAlt />
       </span>
     </div>
   );

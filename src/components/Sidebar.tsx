@@ -4,6 +4,7 @@ import { useAuth } from "../context/AuthContext";
 const adminLinks = [
   { to: "/admin/dashboard", label: "Dashboard", icon: "🏠" },
   { to: "/admin/employees", label: "Employees", icon: "👥" },
+  { to: "/admin/holidays", label: "Holidays", icon: "📅" },
   { to: "/admin/daily-report", label: "Daily Report", icon: "📋" },
   { to: "/admin/weekly-report", label: "Weekly Report", icon: "📊" },
   { to: "/admin/monthly-report", label: "Monthly Report", icon: "📈" },

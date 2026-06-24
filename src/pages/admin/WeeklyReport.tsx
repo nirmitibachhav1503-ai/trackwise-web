@@ -2,10 +2,20 @@ import { useState } from "react";
 import * as XLSX from "xlsx";
 import DatePicker from "../../components/common/DatePicker";
 import reportService from "../../services/reportService";
+import holidayService from "../../services/holidayService";
 import { showError } from "../../utils/toast";
 
-const DAY_FIELDS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
-const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+interface DayCol {
+  date: Date | null;
+  field: string;
+  label: string;
+  isHoliday: boolean;
+}
+
+interface WeekGroup {
+  days: DayCol[];
+  row: any;
+}
 
 const formatDate = (d: Date) => d.toLocaleDateString("en-GB", { day: "2-digit", month: "short" });
 
@@ -20,6 +30,11 @@ const toHHMM = (mins: number): string => {
   const abs = Math.abs(mins);
   return `${sign}${String(Math.floor(abs / 60)).padStart(2, "0")}:${String(abs % 60).padStart(2, "0")}`;
 };
+
+const getDateKey = (date: Date): string =>
+  `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+
+const getApiDateKey = (val: string | null): string => val ? val.slice(0, 10) : "";
 
 // Extract date from "2026-06-15 (08:41)" => Date object
 const parseDateFromMinutes = (val: string | null): Date | null => {
@@ -37,38 +52,105 @@ const parseTimeFromMinutes = (val: string | null): string | null => {
   return match ? match[1] : null;
 };
 
-const isLeaveSaturday = (d: Date): boolean => {
-  if (d.getDay() !== 6) return false;
-  const firstDay = new Date(d.getFullYear(), d.getMonth(), 1).getDay();
-  const firstSatDate = 1 + (6 - firstDay + 7) % 7;
-  const nthSaturday = Math.floor((d.getDate() - firstSatDate) / 7) + 1;
-  return nthSaturday === 1 || nthSaturday === 3;
-};
+const buildWeekGroups = (startDate: string, endDate: string, rows: any[], holidayDates: Set<string>): WeekGroup[] => {
+  if (!startDate || !endDate) return [];
 
-const buildWeekGroups = (_startDate: string, _endDate: string, rows: any[]) => {
-  return rows.map(row => {
-    const days: { date: Date | null; field: string; label: string }[] = [];
-    DAY_FIELDS.forEach((field, i) => {
-      const minutesKey = field + "Minutes";
-      if (row[minutesKey] === undefined) return;
-      const dateVal = parseDateFromMinutes(row[minutesKey]);
-      // For null saturday, derive date from a known day in the row
-      if (field === "saturday" && dateVal === null) {
-        const knownDay = DAY_FIELDS.slice(0, 5)
-          .map((f, fi) => ({ f, fi, d: parseDateFromMinutes(row[f + "Minutes"]) }))
-          .find(x => x.d !== null);
-        if (knownDay?.d) {
-          const sat = new Date(knownDay.d);
-          sat.setDate(sat.getDate() + (6 - sat.getDay() + 7) % 7 || 7);
-          if (isLeaveSaturday(sat)) return; // skip — it's a holiday
-        }
-        return; // null saturday with no derivable date, skip
-      }
-      if (field === "saturday" && dateVal && isLeaveSaturday(dateVal)) return;
-      days.push({ date: dateVal, field, label: DAY_LABELS[i] });
-    });
-    return { days, row };
+  const start = new Date(startDate + "T00:00:00");
+  const end = new Date(endDate + "T00:00:00");
+
+  const dayFields = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
+  const dayLabels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+  const isDateWorking = (date: Date): boolean => {
+    if (date.getDay() === 0) return false;
+    if (date.getDay() === 6) {
+      const weekOfMonth = Math.ceil(date.getDate() / 7);
+      if (weekOfMonth === 1 || weekOfMonth === 3) return false;
+    }
+    return true;
+  };
+
+  const rowMap = new Map<string, any[]>();
+  rows.forEach(r => {
+    const name = r.employeeName || r.fullName || "Unknown";
+    if (!rowMap.has(name)) rowMap.set(name, []);
+    (rowMap.get(name)!).push(r);
   });
+
+  const getRowForWeek = (empName: string, weekStart: Date): any => {
+    const weekKey = getDateKey(weekStart);
+    const empRows = rowMap.get(empName);
+    if (!empRows) return buildSyntheticRow(empName, weekStart);
+    const found = empRows.find((r: any) => {
+      const d = parseDateFromMinutes(r.mondayMinutes);
+      return d && getDateKey(d) === weekKey;
+    });
+    if (found) return found;
+    return buildSyntheticRow(empName, weekStart);
+  };
+
+  const buildSyntheticRow = (empName: string, weekStart: Date): any => {
+    const row: any = { employeeName: empName, _synthetic: true };
+    for (let i = 0; i < 6; i++) {
+      const date = new Date(weekStart);
+      date.setDate(date.getDate() + i);
+      const field = dayFields[i];
+      if (holidayDates.has(getDateKey(date))) {
+        row[field] = "Holiday";
+        row[field + "Minutes"] = null;
+      } else if (isDateWorking(date)) {
+        row[field] = "Leave";
+        row[field + "Minutes"] = null;
+      } else {
+        row[field] = null;
+        row[field + "Minutes"] = null;
+      }
+    }
+    row.totalWorkingHours = null;
+    row.totalMinutes = 0;
+    row.actualHours = null;
+    row.extraHours = null;
+    return row;
+  };
+
+  const groups: WeekGroup[] = [];
+  const cursor = new Date(start);
+  const initialMonday = new Date(start);
+  initialMonday.setDate(initialMonday.getDate() - ((initialMonday.getDay() + 6) % 7));
+  cursor.setTime(initialMonday.getTime());
+
+  while (cursor.getTime() <= end.getTime()) {
+    const weekStart = new Date(cursor);
+
+    const allNames = new Set<string>();
+    rows.forEach(r => allNames.add(r.employeeName || r.fullName || "Unknown"));
+
+    allNames.forEach(name => {
+      const row = getRowForWeek(name, weekStart);
+      const days: DayCol[] = [];
+
+      for (let i = 0; i < 6; i++) {
+        const date = new Date(weekStart);
+        date.setDate(date.getDate() + i);
+
+        if (date < start || date > end) continue;
+        const holiday = holidayDates.has(getDateKey(date));
+        if (!holiday && !isDateWorking(date)) continue;
+
+        const field = dayFields[i];
+        const label = dayLabels[i];
+        days.push({ date, field, label, isHoliday: holiday });
+      }
+
+      if (days.length > 0) {
+        groups.push({ days, row });
+      }
+    });
+
+    cursor.setDate(cursor.getDate() + 7);
+  }
+
+  return groups;
 };
 
 function WeeklyReport() {
@@ -77,6 +159,7 @@ function WeeklyReport() {
   const [search, setSearch]       = useState("");
   const [loading, setLoading]     = useState(false);
   const [reports, setReports]     = useState<any[]>([]);
+  const [holidayDates, setHolidayDates] = useState<Set<string>>(new Set());
   const [pageSize, setPageSize]       = useState(5);
   const [currentPage, setCurrentPage] = useState(1);
   const [selected, setSelected]   = useState<Set<string>>(new Set());
@@ -87,10 +170,16 @@ function WeeklyReport() {
     if (!startDate || !endDate) return;
     try {
       setLoading(true);
-      const response = await reportService.getWeeklyReport(startDate, endDate, undefined, pageNo, size);
+      const year = Number(startDate.slice(0, 4));
+      const [response, holidaysResponse] = await Promise.all([
+        reportService.getWeeklyReport(startDate, endDate, undefined, pageNo, size),
+        holidayService.getHolidays(year)
+      ]);
       const data = Array.isArray(response.data)
         ? response.data
         : response.data ? [response.data] : [];
+      const holidays = Array.isArray(holidaysResponse.data) ? holidaysResponse.data : [];
+      setHolidayDates(new Set(holidays.map((h: any) => getApiDateKey(h.holidayDate))));
       setTotalEmployees(data[0]?.totalCount ?? 0);
       setReports(data);
       setSelected(new Set());
@@ -130,28 +219,30 @@ function WeeklyReport() {
       ? Object.entries(grouped).filter(([name]) => selected.has(name))
       : Object.entries(grouped);
 
-    toExport.forEach(([name, rows]) => {
-      const groups = buildWeekGroups(startDate, endDate, rows);
+    toExport.forEach(([name, rows]: [string, any[]]) => {
+      const groups = buildWeekGroups(startDate, endDate, rows, holidayDates);
       sheetData.push([name]);
       groups.forEach(group => {
-        const firstDate = group.days.find(d => d.date)?.date;
-        const lastDate = [...group.days].reverse().find(d => d.date)?.date;
-        sheetData.push([`Week: ${firstDate ? formatDate(firstDate) : "-"} – ${lastDate ? formatDate(lastDate) : "-"}`]);
+        const firstDate = group.days.find((d: DayCol) => d.date)?.date;
+        const lastDate = [...group.days].reverse().find((d: DayCol) => d.date)?.date;
+        sheetData.push(["Week: " + (firstDate ? formatDate(firstDate) : "-") + " - " + (lastDate ? formatDate(lastDate) : "-")]);
         sheetData.push([
-          ...group.days.map(({ date, label }) => `${label}${date ? ` (${formatDate(date)})` : ""}`),
+          ...group.days.map(({ date, label }: DayCol) => label + (date ? " (" + formatDate(date) + ")" : "")),
           "Total Hours", "Actual Hours", "Extra Hours"
         ]);
-        const dataRow: any[] = group.days.map(({ field }) => {
+        const dataRow: any[] = group.days.map(({ field, isHoliday }: DayCol) => {
+          if (isHoliday) return "Holiday";
           const val = group.row?.[field];
           const mins = toMinutes(val);
           if (!val || mins === 0) return "Leave";
           const time = parseTimeFromMinutes(group.row?.[field + "Minutes"]) ?? val;
           return mins < 6 * 60 ? `${time} (Half Day)` : time;
         });
+        const requiredMinutes = group.days.filter((d: DayCol) => !d.isHoliday).length * 9 * 60;
         dataRow.push(
           group.row?.totalWorkingHours || "-",
-          toHHMM(group.days.length * 9 * 60),
-          group.row?.totalWorkingHours ? toHHMM(toMinutes(group.row.totalWorkingHours) - group.days.length * 9 * 60) : "-"
+          toHHMM(requiredMinutes),
+          group.row?.totalWorkingHours ? toHHMM(toMinutes(group.row.totalWorkingHours) - requiredMinutes) : "-"
         );
         sheetData.push(dataRow);
         sheetData.push([]);
@@ -273,7 +364,7 @@ function WeeklyReport() {
 
       {/* Employee Week Tables */}
       {paginatedNames.map(name => {
-        const weekGroups = buildWeekGroups(startDate, endDate, grouped[name]);
+        const weekGroups = buildWeekGroups(startDate, endDate, grouped[name], holidayDates);
         return (
           <>
             {/* Employee header */}
@@ -289,19 +380,19 @@ function WeeklyReport() {
               </div>
             </div>
 
-            {weekGroups.map((group, groupIndex) => {
-              const firstDate = group.days.find(d => d.date)?.date;
-              const lastDate = [...group.days].reverse().find(d => d.date)?.date;
+            {weekGroups.map((group: WeekGroup, groupIndex: number) => {
+              const firstDate = group.days.find((d: DayCol) => d.date)?.date;
+              const lastDate = [...group.days].reverse().find((d: DayCol) => d.date)?.date;
               return (
                 <div className="card border-0 shadow-sm mb-4" key={groupIndex} style={{ borderRadius: "12px" }}>
                   <div className="card-header fw-semibold py-3 px-4" style={{ background: "#f4f6f9" }}>
-                    Week: {firstDate ? formatDate(firstDate) : "-"} – {lastDate ? formatDate(lastDate) : "-"}
+                    Week: {firstDate ? formatDate(firstDate) : "-"} - {lastDate ? formatDate(lastDate) : "-"}
                   </div>
                   <div className="card-body p-0">
                     <table className="table table-hover mb-0">
                       <thead>
                         <tr>
-                          {group.days.map(({ date, field, label }) => (
+                          {group.days.map(({ date, field, label }: DayCol) => (
                             <th key={field} className="px-4 py-3">{label} {date ? `(${formatDate(date)})` : ""}</th>
                           ))}
                           <th className="px-4 py-3">Total Hours</th>
@@ -311,14 +402,16 @@ function WeeklyReport() {
                       </thead>
                       <tbody>
                         <tr>
-                          {group.days.map(({ field }) => {
+                          {group.days.map(({ field, isHoliday }: DayCol) => {
                             const val = group.row?.[field];
                             const mins = toMinutes(val);
                             const isLeave   = !val || mins === 0;
                             const isHalfDay = !isLeave && mins < 6 * 60;
                             return (
                               <td key={field} className="px-4 py-3">
-                                {isLeave ? (
+                                {isHoliday ? (
+                                  <span style={{ color: "#0d6efd", fontWeight: 600 }}>Holiday</span>
+                                ) : isLeave ? (
                                   <span style={{ color: "#dc3545", fontWeight: 600 }}>Leave</span>
                                 ) : (
                                   <>
@@ -332,10 +425,10 @@ function WeeklyReport() {
                             );
                           })}
                           <td className="px-4 py-3">{group.row?.totalWorkingHours || "-"}</td>
-                          <td className="px-4 py-3">{toHHMM(group.days.length * 9 * 60)}</td>
+                          <td className="px-4 py-3">{toHHMM(group.days.filter((d: DayCol) => !d.isHoliday).length * 9 * 60)}</td>
                           <td className="px-4 py-3">
                             {group.row?.totalWorkingHours
-                              ? toHHMM(toMinutes(group.row.totalWorkingHours) - group.days.length * 9 * 60)
+                              ? toHHMM(toMinutes(group.row.totalWorkingHours) - group.days.filter((d: DayCol) => !d.isHoliday).length * 9 * 60)
                               : "-"}
                           </td>
                         </tr>

@@ -1,9 +1,141 @@
 import { useState } from "react";
 import DatePicker from "../../components/common/DatePicker";
 import reportService from "../../services/reportService";
+import holidayService from "../../services/holidayService";
 import { showError } from "../../utils/toast";
 import { useAuth } from "../../context/AuthContext";
 import * as XLSX from "xlsx";
+
+interface DayCol {
+  date: Date | null;
+  field: string;
+  label: string;
+  isHoliday: boolean;
+}
+
+interface WeekGroup {
+  days: DayCol[];
+  row: any;
+}
+
+const DAY_FIELDS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
+const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+const formatDate = (d: Date) => d.toLocaleDateString("en-GB", { day: "2-digit", month: "short" });
+
+const toMinutes = (hhmm: string): number => {
+  if (!hhmm || !hhmm.includes(":")) return 0;
+  const [h, m] = hhmm.split(":").map(Number);
+  return h * 60 + m;
+};
+
+const toHHMM = (mins: number): string => {
+  const sign = mins < 0 ? "-" : "";
+  const abs = Math.abs(mins);
+  return `${sign}${String(Math.floor(abs / 60)).padStart(2, "0")}:${String(abs % 60).padStart(2, "0")}`;
+};
+
+const getDateKey = (date: Date): string =>
+  `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+
+const getApiDateKey = (val: string | null): string => val ? val.slice(0, 10) : "";
+
+const parseDateFromMinutes = (val: string | null): Date | null => {
+  if (!val) return null;
+  const match = val.match(/^(\d{4}-\d{2}-\d{2})/);
+  if (!match) return null;
+  const d = new Date(match[1] + "T00:00:00");
+  return isNaN(d.getTime()) ? null : d;
+};
+
+const parseTimeFromMinutes = (val: string | null): string | null => {
+  if (!val) return null;
+  const match = val.match(/\((\d{2}:\d{2})\)/);
+  return match ? match[1] : null;
+};
+
+const isDateWorking = (date: Date): boolean => {
+  if (date.getDay() === 0) return false;
+  if (date.getDay() === 6) {
+    const weekOfMonth = Math.ceil(date.getDate() / 7);
+    if (weekOfMonth === 1 || weekOfMonth === 3) return false;
+  }
+  return true;
+};
+
+const buildSyntheticRow = (weekStart: Date, holidayDates: Set<string>): any => {
+  const row: any = { _synthetic: true };
+  for (let i = 0; i < DAY_FIELDS.length; i++) {
+    const date = new Date(weekStart);
+    date.setDate(date.getDate() + i);
+    const field = DAY_FIELDS[i];
+    if (holidayDates.has(getDateKey(date))) {
+      row[field] = "Holiday";
+    } else if (isDateWorking(date)) {
+      row[field] = "Leave";
+    } else {
+      row[field] = null;
+    }
+    row[field + "Minutes"] = null;
+  }
+  row.totalWorkingHours = null;
+  row.totalMinutes = 0;
+  row.actualHours = null;
+  row.extraHours = null;
+  return row;
+};
+
+const getRowForWeek = (rows: any[], weekStart: Date, holidayDates: Set<string>): any => {
+  const weekKey = getDateKey(weekStart);
+  const found = rows.find((row: any) => {
+    const mondayDate = parseDateFromMinutes(row.mondayMinutes);
+    return mondayDate && getDateKey(mondayDate) === weekKey;
+  });
+  return found ?? buildSyntheticRow(weekStart, holidayDates);
+};
+
+const buildWeekGroups = (startDate: string, endDate: string, rows: any[], holidayDates: Set<string>): WeekGroup[] => {
+  if (!startDate || !endDate) return [];
+
+  const start = new Date(startDate + "T00:00:00");
+  const end = new Date(endDate + "T00:00:00");
+  const cursor = new Date(start);
+  const initialMonday = new Date(start);
+  initialMonday.setDate(initialMonday.getDate() - ((initialMonday.getDay() + 6) % 7));
+  cursor.setTime(initialMonday.getTime());
+
+  const groups: WeekGroup[] = [];
+
+  while (cursor <= end) {
+    const weekStart = new Date(cursor);
+    const row = getRowForWeek(rows, weekStart, holidayDates);
+    const days: DayCol[] = [];
+
+    for (let i = 0; i < DAY_FIELDS.length; i++) {
+      const date = new Date(weekStart);
+      date.setDate(date.getDate() + i);
+      if (date < start || date > end) continue;
+
+      const isHoliday = holidayDates.has(getDateKey(date));
+      if (!isHoliday && !isDateWorking(date)) continue;
+
+      days.push({
+        date,
+        field: DAY_FIELDS[i],
+        label: DAY_LABELS[i],
+        isHoliday
+      });
+    }
+
+    if (days.length > 0) {
+      groups.push({ days, row });
+    }
+
+    cursor.setDate(cursor.getDate() + 7);
+  }
+
+  return groups;
+};
 
 function WeeklyReport() {
   const { user } = useAuth();
@@ -11,6 +143,7 @@ function WeeklyReport() {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [data, setData] = useState<any>(null);
+  const [holidayDates, setHolidayDates] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(false);
 
   const search = async () => {
@@ -20,8 +153,14 @@ function WeeklyReport() {
     }
     try {
       setLoading(true);
-      const response = await reportService.getWeeklyReport(startDate, endDate, storedUser?.userId);
+      const year = Number(startDate.slice(0, 4));
+      const [response, holidaysResponse] = await Promise.all([
+        reportService.getWeeklyReport(startDate, endDate, storedUser?.userId),
+        holidayService.getHolidays(year)
+      ]);
       console.log("Weekly report response:", response.data);
+      const holidays = Array.isArray(holidaysResponse.data) ? holidaysResponse.data : [];
+      setHolidayDates(new Set(holidays.map((h: any) => getApiDateKey(h.holidayDate))));
       setData(response.data);
     } catch (err: any) {
       console.error("Weekly report error:", err?.response?.status, err?.response?.data);
@@ -33,71 +172,7 @@ function WeeklyReport() {
 
   const rows: any[] = Array.isArray(data) ? data : data ? [data] : [];
 
-  const DAY_FIELDS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
-  const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-
-  const formatDate = (d: Date) => d.toLocaleDateString("en-GB", { day: "2-digit", month: "short" });
-
-  const toMinutes = (hhmm: string): number => {
-    if (!hhmm || !hhmm.includes(":")) return 0;
-    const [h, m] = hhmm.split(":").map(Number);
-    return h * 60 + m;
-  };
-
-  const toHHMM = (mins: number): string => {
-    const sign = mins < 0 ? "-" : "";
-    const abs = Math.abs(mins);
-    return `${sign}${String(Math.floor(abs / 60)).padStart(2, "0")}:${String(abs % 60).padStart(2, "0")}`;
-  };
-
-  const parseDateFromMinutes = (val: string | null): Date | null => {
-    if (!val) return null;
-    const match = val.match(/^(\d{4}-\d{2}-\d{2})/);
-    if (!match) return null;
-    const d = new Date(match[1]);
-    return isNaN(d.getTime()) ? null : d;
-  };
-
-  const parseTimeFromMinutes = (val: string | null): string | null => {
-    if (!val) return null;
-    const match = val.match(/\((\d{2}:\d{2})\)/);
-    return match ? match[1] : null;
-  };
-
-  const isLeaveSaturday = (d: Date): boolean => {
-    if (d.getDay() !== 6) return false;
-    const firstDay = new Date(d.getFullYear(), d.getMonth(), 1).getDay();
-    const firstSatDate = 1 + (6 - firstDay + 7) % 7;
-    const nthSaturday = Math.floor((d.getDate() - firstSatDate) / 7) + 1;
-    return nthSaturday === 1 || nthSaturday === 3;
-  };
-
-  const groupRowsByWeek = () => {
-    return rows.map(row => {
-      const days: { date: Date | null; field: string; label: string }[] = [];
-      DAY_FIELDS.forEach((field, i) => {
-        const minutesKey = field + "Minutes";
-        if (row[minutesKey] === undefined) return;
-        const dateVal = parseDateFromMinutes(row[minutesKey]);
-        if (field === "saturday" && dateVal === null) {
-          const knownDay = DAY_FIELDS.slice(0, 5)
-            .map((f, fi) => ({ f, fi, d: parseDateFromMinutes(row[f + "Minutes"]) }))
-            .find(x => x.d !== null);
-          if (knownDay?.d) {
-            const sat = new Date(knownDay.d);
-            sat.setDate(sat.getDate() + (6 - sat.getDay() + 7) % 7 || 7);
-            if (isLeaveSaturday(sat)) return;
-          }
-          return;
-        }
-        if (field === "saturday" && dateVal && isLeaveSaturday(dateVal)) return;
-        days.push({ date: dateVal, field, label: DAY_LABELS[i] });
-      });
-      return { days, row };
-    });
-  };
-
-  const weekGroups = groupRowsByWeek();
+  const weekGroups = buildWeekGroups(startDate, endDate, rows, holidayDates);
 
   const exportExcel = () => {
     const sheetData: any[][] = [];
@@ -106,20 +181,22 @@ function WeeklyReport() {
       const lastDate = [...group.days].reverse().find(d => d.date)?.date;
       sheetData.push([`Week: ${firstDate ? formatDate(firstDate) : "-"} – ${lastDate ? formatDate(lastDate) : "-"}`]);
       sheetData.push([
-        ...group.days.map(({ date, label }) => `${label}${date ? ` (${formatDate(date)})` : ""}`),
+        ...group.days.map(({ date, label }: DayCol) => `${label}${date ? ` (${formatDate(date)})` : ""}`),
         "Total Hours", "Actual Hours", "Extra Hours"
       ]);
-      const dataRow: any[] = group.days.map(({ field }) => {
+      const dataRow: any[] = group.days.map(({ field, isHoliday }: DayCol) => {
+        if (isHoliday) return "Holiday";
         const val = group.row?.[field];
         const mins = toMinutes(val);
         if (!val || mins === 0) return "Leave";
         const time = parseTimeFromMinutes(group.row?.[field + "Minutes"]) ?? val;
         return mins < 6 * 60 ? `${time} (Half Day)` : time;
       });
+      const requiredMinutes = group.days.filter((d: DayCol) => !d.isHoliday).length * 9 * 60;
       dataRow.push(
         group.row?.totalWorkingHours || "-",
-        toHHMM(group.days.length * 9 * 60),
-        group.row?.totalWorkingHours ? toHHMM(toMinutes(group.row.totalWorkingHours) - group.days.length * 9 * 60) : "-"
+        toHHMM(requiredMinutes),
+        group.row?.totalWorkingHours ? toHHMM(toMinutes(group.row.totalWorkingHours) - requiredMinutes) : "-"
       );
       sheetData.push(dataRow);
       sheetData.push([]);
@@ -190,7 +267,7 @@ function WeeklyReport() {
                 <table className="table table-hover mb-0">
                   <thead>
                     <tr>
-                      {group.days.map(({ date, field, label }) => (
+                      {group.days.map(({ date, field, label }: DayCol) => (
                         <th key={field} className="px-4 py-3">{label} {date ? `(${formatDate(date)})` : ""}</th>
                       ))}
                       <th className="px-4 py-3">Total Hours</th>
@@ -200,14 +277,16 @@ function WeeklyReport() {
                   </thead>
                   <tbody>
                     <tr>
-                      {group.days.map(({ field }) => {
+                      {group.days.map(({ field, isHoliday }: DayCol) => {
                         const val = group.row?.[field];
                         const mins = toMinutes(val);
                         const isLeave = !val || mins === 0;
                         const isHalfDay = !isLeave && mins < 6 * 60;
                         return (
                           <td key={field} className="px-4 py-3">
-                            {isLeave ? (
+                            {isHoliday ? (
+                              <span style={{ color: "#0d6efd", fontWeight: 600 }}>Holiday</span>
+                            ) : isLeave ? (
                               <span style={{ color: "#dc3545", fontWeight: 600 }}>Leave</span>
                             ) : (
                               <>
@@ -226,8 +305,8 @@ function WeeklyReport() {
                         );
                       })}
                       <td className="px-4 py-3">{group.row?.totalWorkingHours || "-"}</td>
-                      <td className="px-4 py-3">{toHHMM(group.days.length * 9 * 60)}</td>
-                      <td className="px-4 py-3">{group.row?.totalWorkingHours ? toHHMM(toMinutes(group.row.totalWorkingHours) - group.days.length * 9 * 60) : "-"}</td>
+                      <td className="px-4 py-3">{toHHMM(group.days.filter((d: DayCol) => !d.isHoliday).length * 9 * 60)}</td>
+                      <td className="px-4 py-3">{group.row?.totalWorkingHours ? toHHMM(toMinutes(group.row.totalWorkingHours) - group.days.filter((d: DayCol) => !d.isHoliday).length * 9 * 60) : "-"}</td>
                     </tr>
                   </tbody>
                 </table>

@@ -3,12 +3,36 @@ import * as XLSX from "xlsx";
 import type { GridColDef } from "@mui/x-data-grid/models";
 import AppDataGrid from "../../components/common/AppDataGrid";
 import reportService from "../../services/reportService";
+import holidayService from "../../services/holidayService";
 import { showError } from "../../utils/toast";
 
 const MONTHS = [
   "January","February","March","April","May","June",
   "July","August","September","October","November","December"
 ];
+
+const toMinutes = (hhmm: string): number => {
+  if (!hhmm || !hhmm.includes(":")) return 0;
+  const [h, m] = hhmm.split(":").map(Number);
+  return h * 60 + m;
+};
+
+const toHHMM = (mins: number): string => {
+  const sign = mins < 0 ? "-" : "";
+  const abs = Math.abs(mins);
+  return `${sign}${String(Math.floor(abs / 60)).padStart(2, "0")}:${String(abs % 60).padStart(2, "0")}`;
+};
+
+const isWorkingDay = (date: Date): boolean => {
+  if (date.getDay() === 0) return false;
+  if (date.getDay() === 6) {
+    const weekOfMonth = Math.ceil(date.getDate() / 7);
+    if (weekOfMonth === 1 || weekOfMonth === 3) return false;
+  }
+  return true;
+};
+
+const getApiDateKey = (val: string | null): string => val ? val.slice(0, 10) : "";
 
 const columns: GridColDef[] = [
   { field: "employeeName",     headerName: "Employee",    flex: 1.5 },
@@ -29,6 +53,7 @@ function MonthlyReport() {
   const [search, setSearch]   = useState("");
   const [loading, setLoading] = useState(false);
   const [reports, setReports] = useState<any[]>([]);
+  const [holidayDates, setHolidayDates] = useState<Set<string>>(new Set());
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [pageSize, setPageSize]       = useState(5);
   const [currentPage, setCurrentPage] = useState(1);
@@ -41,16 +66,21 @@ function MonthlyReport() {
   const searchReport = async () => {
     try {
       setLoading(true);
-      const response = await reportService.getMonthlyReport(
-        month,
-        year,
-        undefined,
-        currentPage,
-        pageSize
-      );
+      const [response, holidaysResponse] = await Promise.all([
+        reportService.getMonthlyReport(
+          month,
+          year,
+          undefined,
+          currentPage,
+          pageSize
+        ),
+        holidayService.getHolidays(year)
+      ]);
       const data = Array.isArray(response.data)
         ? response.data
         : response.data ? [response.data] : [];
+      const holidays = Array.isArray(holidaysResponse.data) ? holidaysResponse.data : [];
+      setHolidayDates(new Set(holidays.map((h: any) => getApiDateKey(h.holidayDate))));
       setTotalEmployees(data[0]?.totalCount ?? 0);
       setReports(data);
       setSelected(new Set());
@@ -61,7 +91,22 @@ function MonthlyReport() {
     }
   };
 
-  const filteredReports = reports.filter(x =>
+  const monthlyHolidayCount = Array.from(holidayDates).filter(dateKey => {
+    const date = new Date(dateKey + "T00:00:00");
+    return date.getFullYear() === year && date.getMonth() + 1 === month && isWorkingDay(date);
+  }).length;
+
+  const adjustedReports = reports.map(r => {
+    const requiredMinutes = Math.max(0, toMinutes(r.requiredHours) - monthlyHolidayCount * 9 * 60);
+    const totalMinutes = toMinutes(r.totalWorkingHours);
+    return {
+      ...r,
+      requiredHours: toHHMM(requiredMinutes),
+      extraHours: toHHMM(totalMinutes - requiredMinutes),
+    };
+  });
+
+  const filteredReports = adjustedReports.filter(x =>
     x.employeeName?.toLowerCase().includes(search.toLowerCase())
   );
 

@@ -1,14 +1,30 @@
 import api from "../api/axios";
 
+interface HolidayPayload {
+    holidayName: string;
+
+    holidayDate: string;
+
+    year: number;
+}
+
 const holidayService = {
 
-    getHolidays: () =>
+    getHolidays: (
+        year?: number
+    ) =>
         api.get(
-            "/api/Holiday"
+            "/api/Holiday",
+            {
+                params:
+                {
+                    year
+                }
+            }
         ),
 
     addHoliday: (
-        data: any
+        data: HolidayPayload
     ) =>
         api.post(
             "/api/Holiday",
@@ -22,6 +38,14 @@ const holidayService = {
         api.put(
             `/api/Holiday/${id}`,
             data
+        ),
+
+    softDeleteHoliday: (
+        id: number
+    ) =>
+        api.put(
+            `/api/Holiday/${id}`,
+            { isDelete: true }
         ),
 
     deleteHoliday: (

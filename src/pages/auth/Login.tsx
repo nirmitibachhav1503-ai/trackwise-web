@@ -16,7 +16,7 @@ function Login() {
 
   useEffect(() => {
     if (pendingRole && user) {
-      navigate(pendingRole === "Admin" ? "/admin/dashboard" : "/employee/dashboard");
+      navigate(pendingRole === "Admin" ? "/admin/dashboard" : pendingRole === "Manager" ? "/manager/dashboard" : "/employee/dashboard");
     }
   }, [user, pendingRole, navigate]);
 

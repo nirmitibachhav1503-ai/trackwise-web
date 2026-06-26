@@ -43,9 +43,8 @@ const holidayService = {
     softDeleteHoliday: (
         id: number
     ) =>
-        api.put(
-            `/api/Holiday/${id}`,
-            { isDelete: true }
+        api.post(
+            `/api/Holiday/Delete/${id}`
         ),
 
     deleteHoliday: (

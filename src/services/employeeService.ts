@@ -79,6 +79,11 @@ const employeeService = {
         api.post(
             "/api/employee/checkout",
             data
+        ),
+
+    getManagerDashboard: () =>
+        api.get(
+            "/api/dashboard/manager"
         )
 };
 

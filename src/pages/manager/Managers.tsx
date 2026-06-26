@@ -14,8 +14,8 @@ import type { Employee } from "../../types/employee";
 import { showSuccess, showError, showWarning } from "../../utils/toast";
 import { confirmDelete } from "../../utils/confirm";
 
-function Employees() {
-  const [employees, setEmployees] = useState<Employee[]>([]);
+function Managers() {
+  const [managers, setManagers] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
   const [open, setOpen] = useState(false);
@@ -25,20 +25,20 @@ function Employees() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
-  const loadEmployees = async () => {
+  const loadManagers = async () => {
     try {
       setLoading(true);
-      const response = await adminService.getEmployees();
-      setEmployees(response.data);
+      const response = await adminService.getManagers();
+      setManagers(response.data);
     } catch {
-      showError("Unable To Load Employees");
+      showError("Unable To Load Managers");
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    loadEmployees();
+    loadManagers();
   }, []);
 
   const resetForm = () => {
@@ -49,7 +49,7 @@ function Employees() {
     setPassword("");
   };
 
-  const saveEmployee = async () => {
+  const saveManager = async () => {
     if (!employeeCode || !fullName || !email) {
       showWarning("Please Fill All Fields");
       return;
@@ -57,42 +57,41 @@ function Employees() {
 
     try {
       if (selectedId === 0) {
-        await adminService.addEmployee({
+        await adminService.addManager({
           employeeCode,
           fullName,
           email,
-          password,
-          roleName: "Employee"
+          password
         });
-        showSuccess("Employee Added Successfully");
+        showSuccess("Manager Added Successfully");
       } else {
-        await adminService.updateEmployee(
+        await adminService.updateManager(
           selectedId,
           {
             fullName,
             email
           }
         );
-        showSuccess("Employee Updated Successfully");
+        showSuccess("Manager Updated Successfully");
       }
 
       setOpen(false);
       resetForm();
-      loadEmployees();
+      loadManagers();
     } catch {
       showError("Operation Failed");
     }
   };
 
-  const editEmployee = (employee: Employee) => {
-    setSelectedId(employee.userId);
-    setEmployeeCode(employee.employeeCode);
-    setFullName(employee.fullName);
-    setEmail(employee.email);
+  const editManager = (manager: Employee) => {
+    setSelectedId(manager.userId);
+    setEmployeeCode(manager.employeeCode);
+    setFullName(manager.fullName);
+    setEmail(manager.email);
     setOpen(true);
   };
 
-  const deleteEmployee = async (id: number) => {
+  const deleteManager = async (id: number) => {
     const confirmed = await confirmDelete();
 
     if (!confirmed) {
@@ -100,9 +99,9 @@ function Employees() {
     }
 
     try {
-      await adminService.deleteEmployee(id);
-      showSuccess("Employee Deleted");
-      loadEmployees();
+      await adminService.deleteManager(id);
+      showSuccess("Manager Deleted");
+      loadManagers();
     } catch {
       showError("Delete Failed");
     }
@@ -139,7 +138,7 @@ function Employees() {
             variant="contained"
             size="small"
             sx={{ mr: 1 }}
-            onClick={() => editEmployee(params.row)}
+            onClick={() => editManager(params.row)}
           >
             Edit
           </Button>
@@ -148,7 +147,8 @@ function Employees() {
             color="error"
             variant="contained"
             size="small"
-            onClick={() => deleteEmployee(params.row.userId)}
+            sx={{ mr: 1 }}
+            onClick={() => deleteManager(params.row.userId)}
           >
             Delete
           </Button>
@@ -157,14 +157,13 @@ function Employees() {
     }
   ];
 
-
-  const filteredEmployees = employees.filter(
+  const filteredManagers = managers.filter(
     x => x.fullName.toLowerCase().includes(search.toLowerCase())
   );
 
   return (
     <div>
-      <h2>Employee Management</h2>
+      <h2>Manager Management</h2>
 
       <div className="d-flex justify-content-between">
         <Button
@@ -174,12 +173,12 @@ function Employees() {
             setOpen(true);
           }}
         >
-          Add Employee
+          Add Manager
         </Button>
       </div>
 
       <TextField
-        label="Search Employee"
+        label="Search Manager"
         fullWidth
         sx={{ mt: 3 }}
         value={search}
@@ -188,7 +187,7 @@ function Employees() {
 
       <div className="mt-4">
         <AppDataGrid
-          rows={filteredEmployees}
+          rows={filteredManagers}
           columns={columns}
           loading={loading}
         />
@@ -201,8 +200,8 @@ function Employees() {
       >
         <DialogTitle>
           {selectedId === 0
-            ? "Add Employee"
-            : "Edit Employee"
+            ? "Add Manager"
+            : "Edit Manager"
           }
         </DialogTitle>
 
@@ -252,7 +251,7 @@ function Employees() {
 
           <Button
             variant="contained"
-            onClick={saveEmployee}
+            onClick={saveManager}
           >
             Save
           </Button>
@@ -262,4 +261,4 @@ function Employees() {
   );
 }
 
-export default Employees;
+export default Managers;

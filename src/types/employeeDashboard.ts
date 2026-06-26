@@ -16,3 +16,16 @@ export interface EmployeeDashboard {
 
     monthlyHours: string;
 }
+
+export interface ManagerDashboard {
+
+    totalTeamMembers: number;
+
+    pendingTasks: number;
+
+    inProgressTasks: number;
+
+    completedTasks: number;
+
+    teamWorkingHours: string;
+}

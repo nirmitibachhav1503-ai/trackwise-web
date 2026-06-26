@@ -2,13 +2,23 @@ import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
 const adminLinks = [
-  { to: "/admin/dashboard", label: "Dashboard", icon: "🏠" },
+  { to: "/admin/manager-dashboard", label: "Manager Dashboard", icon: "🏠" },
+  { to: "/admin/dashboard", label: "Attendance Dashboard", icon: "📊" },
+  { to: "/admin/assign-task", label: "Assign Task", icon: "📝" },
+  { to: "/admin/tasks", label: "Tasks", icon: "✅" },
   { to: "/admin/employees", label: "Employees", icon: "👥" },
+  { to: "/admin/managers", label: "Managers", icon: "👨‍💼" },
   { to: "/admin/holidays", label: "Holidays", icon: "📅" },
   { to: "/admin/daily-report", label: "Daily Report", icon: "📋" },
   { to: "/admin/weekly-report", label: "Weekly Report", icon: "📊" },
   { to: "/admin/monthly-report", label: "Monthly Report", icon: "📈" },
   { to: "/admin/analytics", label: "Employee Analytics", icon: "🔍" },
+];
+
+const managerLinks = [
+  { to: "/manager/task-dashboard", label: "Task Dashboard", icon: "📊" },
+  { to: "/manager/assign-task", label: "Assign Task", icon: "📝" },
+  { to: "/manager/tasks", label: "Tasks", icon: "✅" },
 ];
 
 const employeeLinks = [
@@ -17,12 +27,13 @@ const employeeLinks = [
   { to: "/employee/daily-report",   label: "Daily Report",  icon: "📋" },
   { to: "/employee/weekly-report",  label: "Weekly Report", icon: "📊" },
   { to: "/employee/monthly-report", label: "Monthly Report",icon: "📈" },
+  { to: "/employee/my-tasks",       label: "My Tasks",      icon: "✅" },
 ];
 
 function Sidebar() {
   const { user } = useAuth();
   const location = useLocation();
-  const links = user?.role === "Admin" ? adminLinks : employeeLinks;
+  const links = user?.role === "Admin" ? adminLinks : user?.role === "Manager" ? managerLinks : employeeLinks;
 
   return (
     <div style={{

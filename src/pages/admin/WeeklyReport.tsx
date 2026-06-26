@@ -300,12 +300,12 @@ function WeeklyReport() {
             </div>
             <div className="col-md-2">
               <button className="btn btn-primary w-100" onClick={searchReport} disabled={loading}>
-                {loading ? <span className="spinner-border spinner-border-sm" /> : "🔍 Search"}
+                {loading ? <span className="spinner-border spinner-border-sm" /> : " Search"}
               </button>
             </div>
             <div className="col-md-2">
               <button className="btn btn-success w-100" onClick={exportExcel} disabled={!reports.length}>
-                📥 {selected.size > 0 ? `${selected.size} Export` : "Export Excel"}
+                 {selected.size > 0 ? `${selected.size} Export` : "Export Excel"}
               </button>
             </div>
           </div>

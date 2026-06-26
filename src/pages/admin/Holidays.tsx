@@ -2,6 +2,10 @@ import { useEffect, useState, useMemo } from "react";
 import type { GridColDef } from "@mui/x-data-grid/models";
 import TextField from "@mui/material/TextField";
 import Button from "@mui/material/Button";
+import Dialog from "@mui/material/Dialog";
+import DialogTitle from "@mui/material/DialogTitle";
+import DialogContent from "@mui/material/DialogContent";
+import DialogActions from "@mui/material/DialogActions";
 import AppDataGrid from "../../components/common/AppDataGrid";
 import DatePicker from "../../components/common/DatePicker";
 import holidayService from "../../services/holidayService";
@@ -15,6 +19,10 @@ function Holidays() {
   const [holidayName, setHolidayName] = useState("");
   const [holidayDate, setHolidayDate] = useState("");
   const [selectedYear, setSelectedYear] = useState<number | "">("");
+  const [editOpen, setEditOpen] = useState(false);
+  const [editHolidayId, setEditHolidayId] = useState<number | null>(null);
+  const [editHolidayName, setEditHolidayName] = useState("");
+  const [editHolidayDate, setEditHolidayDate] = useState("");
 
   const getHolidayYear = (date: string) => Number(date.slice(0, 4));
 
@@ -83,6 +91,41 @@ function Holidays() {
     }
   };
 
+  const openEdit = (holiday: Holiday) => {
+    setEditHolidayId(holiday.holidayId);
+    setEditHolidayName(holiday.holidayName);
+    setEditHolidayDate(holiday.holidayDate);
+    setEditOpen(true);
+  };
+
+  const closeEdit = () => {
+    setEditOpen(false);
+    setEditHolidayId(null);
+    setEditHolidayName("");
+    setEditHolidayDate("");
+  };
+
+  const saveEdit = async () => {
+    if (!editHolidayId || !editHolidayName || !editHolidayDate) {
+      showWarning("Please Fill All Fields");
+      return;
+    }
+
+    try {
+      await holidayService.updateHoliday(editHolidayId, {
+        holidayName: editHolidayName,
+        holidayDate: editHolidayDate,
+        year: Number(editHolidayDate.slice(0, 4))
+      });
+
+      showSuccess("Holiday Updated Successfully");
+      closeEdit();
+      loadHolidays(selectedYear || undefined);
+    } catch {
+      showError("Unable To Update Holiday");
+    }
+  };
+
   const years = useMemo(() => {
     const yearSet = new Set<number>();
     holidays.forEach(h => {
@@ -127,17 +170,28 @@ function Holidays() {
     {
       field: "actions",
       headerName: "Action",
-      width: 120,
+      width: 200,
       sortable: false,
       renderCell: (params) => (
-        <Button
-          color="error"
-          variant="contained"
-          size="small"
-          onClick={() => deleteHoliday(params.row.holidayId)}
-        >
-          Delete
-        </Button>
+        <>
+          <Button
+            color="primary"
+            variant="contained"
+            size="small"
+            sx={{ mr: 1 }}
+            onClick={() => openEdit(params.row)}
+          >
+            Edit
+          </Button>
+          <Button
+            color="error"
+            variant="contained"
+            size="small"
+            onClick={() => deleteHoliday(params.row.holidayId)}
+          >
+            Delete
+          </Button>
+        </>
       )
     }
   ];
@@ -217,6 +271,33 @@ function Holidays() {
           </div>
         )}
       </div>
+
+      <Dialog
+        open={editOpen}
+        onClose={closeEdit}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>Edit Holiday</DialogTitle>
+        <DialogContent>
+          <DatePicker
+            value={editHolidayDate}
+            onChange={setEditHolidayDate}
+          />
+
+          <TextField
+            label="Holiday Name"
+            fullWidth
+            margin="normal"
+            value={editHolidayName}
+            onChange={(e) => setEditHolidayName(e.target.value)}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={closeEdit}>Cancel</Button>
+          <Button variant="contained" onClick={saveEdit}>Save</Button>
+        </DialogActions>
+      </Dialog>
     </div>
   );
 }

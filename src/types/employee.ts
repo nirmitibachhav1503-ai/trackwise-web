@@ -8,5 +8,7 @@ export interface Employee {
 
     email: string;
 
-    roleName: string;
+    roleName: string | null;
+
+    isAssigned?: number;
 }

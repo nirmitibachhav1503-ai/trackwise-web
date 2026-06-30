@@ -13,9 +13,11 @@ import adminService from "../../services/adminService";
 import type { Employee } from "../../types/employee";
 import { showSuccess, showError, showWarning } from "../../utils/toast";
 import { confirmDelete } from "../../utils/confirm";
+import { useAuth } from "../../context/AuthContext";
 
-function Managers() {
-  const [managers, setManagers] = useState<Employee[]>([]);
+function ManagerEmployees() {
+  const { user } = useAuth();
+  const [employees, setEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
   const [open, setOpen] = useState(false);
@@ -25,20 +27,20 @@ function Managers() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
-  const loadManagers = async () => {
+  const loadEmployees = async () => {
     try {
       setLoading(true);
-      const response = await adminService.getManagers();
-      setManagers(response.data);
+      const response = await adminService.getManagerEmployees(user!.userId);
+      setEmployees(response.data);
     } catch {
-      showError("Unable To Load Managers");
+      showError("Unable To Load Employees");
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    loadManagers();
+    loadEmployees();
   }, []);
 
   const resetForm = () => {
@@ -49,7 +51,7 @@ function Managers() {
     setPassword("");
   };
 
-  const saveManager = async () => {
+  const saveEmployee = async () => {
     if (!fullName || !email) {
       showWarning("Please Fill All Fields");
       return;
@@ -57,40 +59,42 @@ function Managers() {
 
     try {
       if (selectedId === 0) {
-        await adminService.addManager({
+        await adminService.addManagerEmployee({
           fullName,
           email,
-          password
+          password,
+          roleName: "Employee",
+          managerUserId: user!.userId
         });
-        showSuccess("Manager Added Successfully");
+        showSuccess("Employee Added Successfully");
       } else {
-        await adminService.updateManager(
+        await adminService.updateEmployee(
           selectedId,
           {
             fullName,
             email
           }
         );
-        showSuccess("Manager Updated Successfully");
+        showSuccess("Employee Updated Successfully");
       }
 
       setOpen(false);
       resetForm();
-      loadManagers();
+      loadEmployees();
     } catch {
       showError("Operation Failed");
     }
   };
 
-  const editManager = (manager: Employee) => {
-    setSelectedId(manager.userId);
-    setEmployeeCode(manager.employeeCode);
-    setFullName(manager.fullName);
-    setEmail(manager.email);
+  const editEmployee = (employee: Employee) => {
+    setSelectedId(employee.userId);
+    setEmployeeCode(employee.employeeCode);
+    setFullName(employee.fullName);
+    setEmail(employee.email);
     setOpen(true);
   };
 
-  const deleteManager = async (id: number) => {
+  const deleteEmployee = async (id: number) => {
     const confirmed = await confirmDelete();
 
     if (!confirmed) {
@@ -98,9 +102,9 @@ function Managers() {
     }
 
     try {
-      await adminService.deleteManager(id);
-      showSuccess("Manager Deleted");
-      loadManagers();
+      await adminService.deleteEmployee(id);
+      showSuccess("Employee Deleted");
+      loadEmployees();
     } catch {
       showError("Delete Failed");
     }
@@ -137,7 +141,7 @@ function Managers() {
             variant="contained"
             size="small"
             sx={{ mr: 1 }}
-            onClick={() => editManager(params.row)}
+            onClick={() => editEmployee(params.row)}
           >
             Edit
           </Button>
@@ -146,8 +150,7 @@ function Managers() {
             color="error"
             variant="contained"
             size="small"
-            sx={{ mr: 1 }}
-            onClick={() => deleteManager(params.row.userId)}
+            onClick={() => deleteEmployee(params.row.userId)}
           >
             Delete
           </Button>
@@ -156,13 +159,13 @@ function Managers() {
     }
   ];
 
-  const filteredManagers = managers.filter(
+  const filteredEmployees = employees.filter(
     x => x.fullName.toLowerCase().includes(search.toLowerCase())
   );
 
   return (
     <div>
-      <h2>Manager Management</h2>
+      <h2>Employee Management</h2>
 
       <div className="d-flex justify-content-between">
         <Button
@@ -172,12 +175,12 @@ function Managers() {
             setOpen(true);
           }}
         >
-          Add Manager
+          Add Employee
         </Button>
       </div>
 
       <TextField
-        label="Search Manager"
+        label="Search Employee"
         fullWidth
         sx={{ mt: 3 }}
         value={search}
@@ -186,7 +189,7 @@ function Managers() {
 
       <div className="mt-4">
         <AppDataGrid
-          rows={filteredManagers}
+          rows={filteredEmployees}
           columns={columns}
           loading={loading}
         />
@@ -199,8 +202,8 @@ function Managers() {
       >
         <DialogTitle>
           {selectedId === 0
-            ? "Add Manager"
-            : "Edit Manager"
+            ? "Add Employee"
+            : "Edit Employee"
           }
         </DialogTitle>
 
@@ -243,7 +246,7 @@ function Managers() {
 
           <Button
             variant="contained"
-            onClick={saveManager}
+            onClick={saveEmployee}
           >
             Save
           </Button>
@@ -253,4 +256,4 @@ function Managers() {
   );
 }
 
-export default Managers;
+export default ManagerEmployees;

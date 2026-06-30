@@ -5,7 +5,7 @@ import Button from "@mui/material/Button";
 import AppDataGrid from "../../components/common/AppDataGrid";
 import taskService from "../../services/taskService";
 import type { Task } from "../../types/task";
-import { showSuccess, showError } from "../../utils/toast";
+import { showError } from "../../utils/toast";
 
 function TaskList() {
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -22,7 +22,7 @@ function TaskList() {
       if (employeeFilter) params.employeeId = employeeFilter;
       if (statusFilter) params.status = statusFilter;
       if (priorityFilter) params.priority = priorityFilter;
-      const response = await taskService.getAllTasks(Object.keys(params).length ? params : undefined);
+      const response = await taskService.getAllTasks(params);
       setTasks(response.data);
     } catch {
       showError("Unable To Load Tasks");
@@ -42,9 +42,14 @@ function TaskList() {
       flex: 1
     },
     {
-      field: "title",
+      field: "projectName",
+      headerName: "Project",
+      flex: 1.2
+    },
+    {
+      field: "taskDescription",
       headerName: "Task",
-      flex: 1
+      flex: 1.5
     },
     {
       field: "priority",
@@ -52,8 +57,8 @@ function TaskList() {
       flex: 1
     },
     {
-      field: "dueDate",
-      headerName: "Due Date",
+      field: "reportDate",
+      headerName: "Report Date",
       flex: 1
     },
     {
@@ -64,7 +69,7 @@ function TaskList() {
   ];
 
   const filteredTasks = tasks.filter(t => {
-    const matchesSearch = t.title.toLowerCase().includes(search.toLowerCase()) ||
+    const matchesSearch = t.taskDescription?.toLowerCase().includes(search.toLowerCase()) ||
       t.employeeName.toLowerCase().includes(search.toLowerCase());
     const matchesEmployee = !employeeFilter || t.userId === Number(employeeFilter);
     const matchesStatus = !statusFilter || t.status === statusFilter;
@@ -105,15 +110,17 @@ function TaskList() {
 
         <div className="col-12 col-md-2">
           <label className="form-label">Status</label>
-          <select
+<select
             className="form-select"
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
           >
-            <option value="">All</option>
+            
             <option value="Pending">Pending</option>
             <option value="In Progress">In Progress</option>
-            <option value="Completed">Completed</option>
+            <option value="In Review">In Review</option>
+            <option value="Resolved">Resolved</option>
+            <option value="Resolved And Closed">Resolved And Closed</option>
           </select>
         </div>
 
@@ -124,7 +131,7 @@ function TaskList() {
             value={priorityFilter}
             onChange={(e) => setPriorityFilter(e.target.value)}
           >
-            <option value="">All</option>
+            
             <option value="High">High</option>
             <option value="Medium">Medium</option>
             <option value="Low">Low</option>

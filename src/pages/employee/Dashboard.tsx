@@ -9,6 +9,7 @@ const statCards = (d: EmployeeDashboard) => [
   { title: "Monthly Hours",       value: d.monthlyHours  || "00:00", icon: "📈", color: "#06d6a0" },
   { title: "Check In",            value: d.inTime        ? new Date(d.inTime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: true }) : "--:--", icon: "🟢", color: "#2ec4b6" },
   { title: "Check Out",           value: d.outTime       ? new Date(d.outTime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: true }) : "--:--", icon: "🔴", color: "#e63946" },
+  { title: "Manager",             value: d.manager       || "Not Assigned", icon: "👨‍💼", color: "#6f42c1" },
 ];
 
 function Dashboard() {

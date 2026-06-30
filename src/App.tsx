@@ -24,6 +24,8 @@ import WeeklyReport from "./pages/admin/WeeklyReport";
 import MonthlyReport from "./pages/admin/MonthlyReport";
 import Analytics from "./pages/admin/Analytics";
 import AssignTask from "./pages/manager/AssignTask";
+import AssignEmployeeToManager from "./pages/admin/AssignEmployeeToManager";
+import Projects from "./pages/admin/Projects";
 import EmployeeWeeklyReport from "./pages/employee/WeeklyReport";
 import EmployeeMonthlyReport from "./pages/employee/MonthlyReport";
 import EmployeeDailyReport from "./pages/employee/DailyReport";
@@ -34,6 +36,7 @@ import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import TaskList from "./pages/manager/TaskList";
 import TaskDashboard from "./pages/manager/TaskDashboard";
+import ManagerEmployees from "./pages/manager/Employees";
 
 function App() {
   return (
@@ -61,7 +64,7 @@ function App() {
         >
           <Route
             index
-            element={<Navigate to="manager-dashboard" replace />}
+            element={<Navigate to="dashboard" replace />}
           />
           <Route
             path="dashboard"
@@ -99,15 +102,15 @@ function App() {
             path="analytics"
             element={<Analytics />}
           />
-          <Route
-            path="assign-task"
-            element={<AssignTask />}
-          />
-          <Route
-            path="tasks"
-            element={<TaskList />}
-          />
-        </Route>
+<Route
+             path="assign-employee"
+             element={<AssignEmployeeToManager />}
+           />
+           <Route
+             path="projects"
+             element={<Projects />}
+           />
+         </Route>
 
         <Route
           path="/employee"
@@ -165,15 +168,15 @@ function App() {
         >
           <Route
             index
-            element={<Navigate to="task-dashboard" replace />}
-          />
-          <Route
-            path="task-dashboard"
-            element={<TaskDashboard />}
+            element={<Navigate to="assign-task" replace />}
           />
           <Route
             path="assign-task"
             element={<AssignTask />}
+          />
+          <Route
+            path="manageremployees"
+            element={<ManagerEmployees />}
           />
           <Route
             path="tasks"

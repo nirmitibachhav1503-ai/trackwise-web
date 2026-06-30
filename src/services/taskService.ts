@@ -1,5 +1,5 @@
 import api from "../api/axios";
-import type { TaskDashboard, TaskPayload } from "../types/task";
+import type { TaskPayload } from "../types/task";
 
 const taskService = {
     getDashboard: () =>
@@ -11,21 +11,20 @@ const taskService = {
         data: TaskPayload
     ) =>
         api.post(
-            "/api/task/assign",
+            "/api/task/assign-task",
             data
         ),
 
-    getAllTasks: (
-        params?: Record<string, string>
-    ) =>
-        api.get(
+    getAllTasks: (data?: Record<string, unknown> | Record<string, string> | number) =>
+        api.post(
             "/api/task/task-list",
-            { params }
+            typeof data === "number" ? { userId: data } : data || {}
         ),
 
-    getMyTasks: () =>
-        api.get(
-            "/api/task/my-tasks"
+    getMyTasks: (userId: number, status?: string | null, priority?: string | null, pageSize?: number, pageNo?: number) =>
+        api.post(
+            "/api/task/my-tasks",
+            { userId, status, priority, pageSize, pageNo }
         ),
 
     updateTaskStatus: (
@@ -35,6 +34,22 @@ const taskService = {
         api.post(
             `/api/task/update-status/${id}`,
             { status }
+        ),
+
+    deleteTask: (
+        id: number
+    ) =>
+        api.delete(
+            `/api/task/${id}`
+        ),
+
+    updateTask: (
+        id: number,
+        data: { employeeCode: string; projectId: number; description: string; priority: string; }
+    ) =>
+        api.put(
+            `/api/task/${id}`,
+            data
         )
 };
 

@@ -2,11 +2,14 @@ export interface Task {
     taskId: number;
     userId: number;
     employeeName: string;
-    title: string;
-    description: string;
+    projectName: string;
+    taskDescription: string;
     priority: "High" | "Medium" | "Low";
-    dueDate: string;
-    status: "Pending" | "In Progress" | "Completed";
+    reportDate: string;
+    status: "Pending" | "In Progress" | "In Review" | "Resolved" | "Resolved And Closed";
+    assignTo?: string;
+    projectId?: number;
+    employeeCode?: string;
     assignedDate?: string;
 }
 
@@ -19,9 +22,8 @@ export interface TaskDashboard {
 }
 
 export interface TaskPayload {
-    userId: number;
-    title: string;
+    employeeCode: string;
+    projectId: number;
     description: string;
     priority: string;
-    dueDate: string;
 }

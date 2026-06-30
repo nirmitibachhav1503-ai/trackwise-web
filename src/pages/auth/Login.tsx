@@ -16,7 +16,7 @@ function Login() {
 
   useEffect(() => {
     if (pendingRole && user) {
-      navigate(pendingRole === "Admin" ? "/admin/dashboard" : pendingRole === "Manager" ? "/manager/dashboard" : "/employee/dashboard");
+      navigate(pendingRole === "Admin" ? "/admin/dashboard" : pendingRole === "Manager" ? "/manager/assign-task" : "/employee/dashboard");
     }
   }, [user, pendingRole, navigate]);
 
@@ -33,7 +33,8 @@ function Login() {
       const userData = {
         userId: parseInt(payload.UserId),
         fullName: payload["http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name"],
-        role: payload["http://schemas.microsoft.com/ws/2008/06/identity/claims/role"]
+        role: payload["http://schemas.microsoft.com/ws/2008/06/identity/claims/role"],
+        employeeCode
       };
       login(token, userData);
       toast.success("Login Successful");

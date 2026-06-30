@@ -50,7 +50,7 @@ function Employees() {
   };
 
   const saveEmployee = async () => {
-    if (!employeeCode || !fullName || !email) {
+    if ( !fullName || !email) {
       showWarning("Please Fill All Fields");
       return;
     }
@@ -58,7 +58,6 @@ function Employees() {
     try {
       if (selectedId === 0) {
         await adminService.addEmployee({
-          employeeCode,
           fullName,
           email,
           password,
@@ -207,13 +206,6 @@ function Employees() {
         </DialogTitle>
 
         <DialogContent>
-          <TextField
-            label="Employee Code"
-            fullWidth
-            margin="normal"
-            value={employeeCode}
-            onChange={(e) => setEmployeeCode(e.target.value)}
-          />
 
           <TextField
             label="Full Name"

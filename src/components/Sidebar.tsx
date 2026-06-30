@@ -2,13 +2,12 @@ import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
 const adminLinks = [
-  { to: "/admin/manager-dashboard", label: "Manager Dashboard", icon: "🏠" },
-  { to: "/admin/dashboard", label: "Attendance Dashboard", icon: "📊" },
-  { to: "/admin/assign-task", label: "Assign Task", icon: "📝" },
-  { to: "/admin/tasks", label: "Tasks", icon: "✅" },
+  { to: "/admin/dashboard", label: "Dashboard", icon: "🏠" },
+  { to: "/admin/assign-employee", label: "Assign Employee", icon: "👔" },
   { to: "/admin/employees", label: "Employees", icon: "👥" },
   { to: "/admin/managers", label: "Managers", icon: "👨‍💼" },
   { to: "/admin/holidays", label: "Holidays", icon: "📅" },
+  { to: "/admin/projects", label: "Projects", icon: "📁" },
   { to: "/admin/daily-report", label: "Daily Report", icon: "📋" },
   { to: "/admin/weekly-report", label: "Weekly Report", icon: "📊" },
   { to: "/admin/monthly-report", label: "Monthly Report", icon: "📈" },
@@ -16,9 +15,9 @@ const adminLinks = [
 ];
 
 const managerLinks = [
-  { to: "/manager/task-dashboard", label: "Task Dashboard", icon: "📊" },
   { to: "/manager/assign-task", label: "Assign Task", icon: "📝" },
-  { to: "/manager/tasks", label: "Tasks", icon: "✅" },
+  { to: "/manager/manageremployees", label: "Employees", icon: "👥" },
+ 
 ];
 
 const employeeLinks = [

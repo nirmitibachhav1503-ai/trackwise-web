@@ -7,7 +7,8 @@ import {
     FaChartBar,
     FaUserCircle,
     FaSignOutAlt,
-    FaHome
+    FaHome,
+    FaProjectDiagram
 }
     from "react-icons/fa";
 
@@ -50,6 +51,11 @@ function Sidebar() {
                 title: "Reports",
                 path: "/admin/daily-report",
                 icon: <FaChartBar />
+            },
+            {
+                title: "Projects",
+                path: "/admin/projects",
+                icon: <FaProjectDiagram />
             },
             {
                 title: "Profile",

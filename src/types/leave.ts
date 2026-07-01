@@ -11,4 +11,8 @@ export interface Leave {
     reason: string;
 
     status: string;
+
+    leaveType?: string | null;
+
+    createdDate?: string | null;
 }

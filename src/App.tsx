@@ -31,6 +31,7 @@ import EmployeeMonthlyReport from "./pages/employee/MonthlyReport";
 import EmployeeDailyReport from "./pages/employee/DailyReport";
 import MyTasks from "./pages/employee/MyTasks";
 import MyLeaves from "./pages/employee/MyLeaves";
+import ApplyLeave from "./pages/employee/ApplyLeave";
 
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
@@ -153,6 +154,10 @@ function App() {
           <Route
             path="my-tasks"
             element={<MyTasks />}
+          />
+          <Route
+            path="apply-leave"
+            element={<ApplyLeave />}
           />
         </Route>
 

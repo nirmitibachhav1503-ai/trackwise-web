@@ -7,6 +7,7 @@ const adminLinks = [
   { to: "/admin/employees", label: "Employees", icon: "👥" },
   { to: "/admin/managers", label: "Managers", icon: "👨‍💼" },
   { to: "/admin/holidays", label: "Holidays", icon: "📅" },
+  { to: "/admin/leaves", label: "Leaves", icon: "🌴" },
   { to: "/admin/projects", label: "Projects", icon: "📁" },
   { to: "/admin/daily-report", label: "Daily Report", icon: "📋" },
   { to: "/admin/weekly-report", label: "Weekly Report", icon: "📊" },
@@ -27,6 +28,7 @@ const employeeLinks = [
   { to: "/employee/weekly-report",  label: "Weekly Report", icon: "📊" },
   { to: "/employee/monthly-report", label: "Monthly Report",icon: "📈" },
   { to: "/employee/my-tasks",       label: "My Tasks",      icon: "✅" },
+  { to: "/employee/apply-leave",  label: "Apply Leave",   icon: "📝" },
 ];
 
 function Sidebar() {

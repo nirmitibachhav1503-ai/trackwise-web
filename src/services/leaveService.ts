@@ -8,14 +8,20 @@ const leaveService = {
             data
         ),
 
-    getMyLeaves: () =>
+    getMyLeaves: (userId?: number) =>
         api.get(
-            "/api/leave/my-leaves"
+            "/api/leave/my-leaves",
+            userId ? { params: { userId } } : undefined
         ),
 
     getAllLeaves: () =>
         api.get(
             "/api/leave/all"
+        ),
+
+    getLeavesByUserId: (userId: number) =>
+        api.get(
+            `/api/leave/user/${userId}`
         ),
 
     approveLeave: (

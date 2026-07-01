@@ -125,6 +125,12 @@ const adminService = {
     ) =>
         api.delete(
             `/api/admin/projects/${id}`
+        ),
+
+    getLeaves: (employeeId?: number, status?: string, fromDate?: string, toDate?: string) =>
+        api.post(
+            "/api/admin/leaves/search",
+            { userId: employeeId, status, fromDate, toDate }
         )
     };
 

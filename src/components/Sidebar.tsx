@@ -14,7 +14,15 @@ const adminLinks = [
   { to: "/admin/monthly-report", label: "Monthly Report", icon: "📈" },
   { to: "/admin/analytics", label: "Employee Analytics", icon: "🔍" },
 ];
-
+const hrLinks = [
+  { to: "/hr/employees", label: "Employees", icon: "👥" },
+  { to: "/hr/managers", label: "Managers", icon: "👨‍💼" },
+  { to: "/hr/holidays", label: "Holidays", icon: "📅" },
+  { to: "/hr/leaves", label: "Leaves", icon: "🌴" },
+  { to: "/hr/daily-report", label: "Daily Report", icon: "📋" },
+  { to: "/hr/weekly-report", label: "Weekly Report", icon: "📊" },
+  { to: "/hr/monthly-report", label: "Monthly Report", icon: "📈" },
+];
 const managerLinks = [
   { to: "/manager/assign-task", label: "Assign Task", icon: "📝" },
   { to: "/manager/manageremployees", label: "Employees", icon: "👥" },
@@ -34,7 +42,7 @@ const employeeLinks = [
 function Sidebar() {
   const { user } = useAuth();
   const location = useLocation();
-  const links = user?.role === "Admin" ? adminLinks : user?.role === "Manager" ? managerLinks : employeeLinks;
+  const links = user?.role?.toLowerCase() === "admin" ? adminLinks : user?.role?.toLowerCase() === "hr" ? hrLinks : user?.role?.toLowerCase() === "manager" ? managerLinks : employeeLinks;
 
   return (
     <div style={{

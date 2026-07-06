@@ -11,4 +11,6 @@ export interface Employee {
     roleName: string | null;
 
     isAssigned?: number;
+
+    projectNames?: string | null;
 }

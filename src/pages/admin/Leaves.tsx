@@ -40,14 +40,14 @@ function Leaves() {
     }
   };
 
-  const loadLeaves = async () => {
+  const loadLeaves = async (empId?: string, status?: string, fDate?: string, tDate?: string) => {
     try {
       setLoading(true);
       const response = await adminService.getLeaves(
-        selectedEmployee ? Number(selectedEmployee) : undefined,
-        selectedStatus === "All" ? undefined : selectedStatus,
-        fromDate || undefined,
-        toDate || undefined
+        empId ? Number(empId) : undefined,
+        status && status !== "All" ? status : undefined,
+        fDate || undefined,
+        tDate || undefined
       );
       setLeaves(response.data);
     } catch {
@@ -70,11 +70,11 @@ function Leaves() {
     setSelectedStatus("All");
     setFromDate("");
     setToDate("");
-    loadLeaves();
+    loadLeaves(undefined, undefined, undefined, undefined);
   };
 
   const searchLeaves = () => {
-    loadLeaves();
+    loadLeaves(selectedEmployee, selectedStatus, fromDate, toDate);
   };
 
   const approveLeave = async (leaveId: number) => {

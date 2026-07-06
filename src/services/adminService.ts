@@ -131,6 +131,17 @@ const adminService = {
         api.post(
             "/api/admin/leaves/search",
             { userId: employeeId, status, fromDate, toDate }
+        ),
+
+    getLeavesByDateRange: (fromDate?: string, toDate?: string) =>
+        api.get(
+            `/api/report/leaves-in-range${fromDate ? `?startDate=${fromDate}` : ""}${toDate ? `${fromDate ? "&" : "?"}endDate=${toDate}` : ""}`
+        ),
+
+    assignTeamLead: (data: { employeeId: number; projectName: string }) =>
+        api.post(
+            "/api/assign_team_lead",
+            data
         )
     };
 

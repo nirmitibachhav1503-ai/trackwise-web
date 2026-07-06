@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { GridColDef } from "@mui/x-data-grid/models";
 import {
   Dialog,
@@ -20,10 +20,20 @@ function Employees() {
   const [search, setSearch] = useState("");
   const [open, setOpen] = useState(false);
   const [selectedId, setSelectedId] = useState(0);
-  const [employeeCode, setEmployeeCode] = useState("");
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [openMenuId, setOpenMenuId] = useState<number | null>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node))
+        setOpenMenuId(null);
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   const loadEmployees = async () => {
     try {
@@ -43,7 +53,6 @@ function Employees() {
 
   const resetForm = () => {
     setSelectedId(0);
-    setEmployeeCode("");
     setFullName("");
     setEmail("");
     setPassword("");
@@ -85,7 +94,6 @@ function Employees() {
 
   const editEmployee = (employee: Employee) => {
     setSelectedId(employee.userId);
-    setEmployeeCode(employee.employeeCode);
     setFullName(employee.fullName);
     setEmail(employee.email);
     setOpen(true);
@@ -131,28 +139,33 @@ function Employees() {
     {
       field: "actions",
       headerName: "Actions",
-      flex: 2,
-      renderCell: (params) => (
-        <div>
-          <Button
-            variant="contained"
-            size="small"
-            sx={{ mr: 1 }}
-            onClick={() => editEmployee(params.row)}
-          >
-            Edit
-          </Button>
-
-          <Button
-            color="error"
-            variant="contained"
-            size="small"
-            onClick={() => deleteEmployee(params.row.userId)}
-          >
-            Delete
-          </Button>
-        </div>
-      )
+      flex: 1,
+      sortable: false,
+      renderCell: (params) => {
+        const { userId } = params.row;
+        const isOpen = openMenuId === userId;
+        return (
+          <div ref={isOpen ? menuRef : null} style={{ position: "relative", display: "inline-block" }}>
+            <button
+              className="btn btn-sm btn-outline-secondary"
+              style={{ lineHeight: 1, padding: "2px 8px", fontSize: "18px" }}
+              onClick={() => setOpenMenuId(isOpen ? null : userId)}
+            >
+              ⋮
+            </button>
+            {isOpen && (
+              <ul className="dropdown-menu show" style={{ position: "fixed", zIndex: 9999, minWidth: "130px" }}>
+                <li>
+                  <button className="dropdown-item" onClick={() => { editEmployee(params.row); setOpenMenuId(null); }}>Edit</button>
+                </li>
+                <li>
+                  <button className="dropdown-item text-danger" onClick={() => { deleteEmployee(userId); setOpenMenuId(null); }}>Delete</button>
+                </li>
+              </ul>
+            )}
+          </div>
+        );
+      }
     }
   ];
 

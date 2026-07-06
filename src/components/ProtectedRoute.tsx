@@ -39,7 +39,7 @@ function ProtectedRoute({
 
   if (
     role &&
-    user.role !== role
+    user.role?.toLowerCase() !== role.toLowerCase()
   )
   {
     return (

@@ -6,6 +6,7 @@ import AppDataGrid from "../../components/common/AppDataGrid";
 import DatePicker from "../../components/common/DatePicker";
 import reportService from "../../services/reportService";
 import holidayService from "../../services/holidayService";
+import adminService from "../../services/adminService";
 import { showError } from "../../utils/toast";
 
 const formatTime = (val: string | null) =>
@@ -56,7 +57,7 @@ function DailyReport() {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalEmployees, setTotalEmployees] = useState(0);
   const { user } = useAuth();
-  const isAdmin = user?.role?.toLowerCase() === "admin";
+  const isAdmin = user?.role?.toLowerCase() === "admin" || user?.role?.toLowerCase() === "hr";
 
   useEffect(() => {
     if (isAdmin && reports.length > 0) searchReport();
@@ -125,7 +126,7 @@ function DailyReport() {
           isAdmin ? pageSize : undefined
         ),
         holidayService.getHolidays(year)
-      ]);
+            ]);
       const data = Array.isArray(response.data) ? response.data : response.data ? [response.data] : [];
       const holidays = Array.isArray(holidaysResponse.data) ? holidaysResponse.data : [];
       setHolidayDates(new Set(holidays.map((h: any) => getDateKey(h.holidayDate))));
@@ -175,7 +176,9 @@ function DailyReport() {
       const endDateObj = new Date(endDate + "T00:00:00");
 
       while (current <= endDateObj) {
-        const dateKey = getLocalDateKey(current);
+                const dateKey = getLocalDateKey(current);
+
+
         if (holidayDates.has(dateKey) && !dateMap.has(dateKey)) {
           allReports.push({
             id: `holiday-${name}-${dateKey}`,
@@ -363,19 +366,19 @@ function DailyReport() {
             👤 {name}
           </div>
           <div className="card-body p-0">
-            <AppDataGrid
-              rows={grouped[name].map((r, i) => ({ id: i, ...r }))}
-              columns={columns}
-              loading={false}
-              getRowClassName={(params: any) => {
-                const working = parseWorkingHours(params.row.workingHours);
-                if (isHoliday(params.row.reportDate)) return "holiday-row";
-                if (isOfficialOff(params.row.reportDate)) return "official-off-row";
+<AppDataGrid
+               rows={grouped[name].map((r, i) => ({ id: i, ...r }))}
+               columns={columns}
+               loading={false}
+               getRowClassName={(params: any) => {
+                 const working = parseWorkingHours(params.row.workingHours);
+                 if (isHoliday(params.row.reportDate)) return "holiday-row";
+                 if (isOfficialOff(params.row.reportDate)) return "official-off-row";
                 if (working === 0) return "leave-row";
-                if (working < 6)   return "halfday-row";
-                return "";
-              }}
-            />
+                 if (working < 6)   return "halfday-row";
+                 return "";
+               }}
+             />
           </div>
         </div>
       ))}

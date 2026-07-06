@@ -6,8 +6,9 @@ import {
 }
   from "react-router-dom";
 
+import { ToastContainer } from "react-toastify";
+
 import AdminDashboard from "./pages/admin/Dashboard";
-import ManagerDashboardPage from "./pages/manager/ManagerDashboard";
 import EmployeeDashboard from "./pages/employee/Dashboard";
 import ProtectedRoute from "./components/ProtectedRoute";
 import AdminLayout from "./layouts/AdminLayout";
@@ -32,11 +33,7 @@ import EmployeeDailyReport from "./pages/employee/DailyReport";
 import MyTasks from "./pages/employee/MyTasks";
 import MyLeaves from "./pages/employee/MyLeaves";
 import ApplyLeave from "./pages/employee/ApplyLeave";
-
-import { ToastContainer } from "react-toastify";
-import "react-toastify/dist/ReactToastify.css";
 import TaskList from "./pages/manager/TaskList";
-import TaskDashboard from "./pages/manager/TaskDashboard";
 import ManagerEmployees from "./pages/manager/Employees";
 
 function App() {
@@ -99,11 +96,11 @@ function App() {
             path="monthly-report"
             element={<MonthlyReport />}
           />
-          <Route
-            path="analytics"
-            element={<Analytics />}
-          />
 <Route
+             path="analytics"
+             element={<Analytics />}
+           />
+           <Route
              path="assign-employee"
              element={<AssignEmployeeToManager />}
            />
@@ -112,6 +109,26 @@ function App() {
              element={<Projects />}
            />
          </Route>
+
+        <Route
+           path="/hr"
+           element={
+             <ProtectedRoute
+               role="HR"
+             >
+               <AdminLayout />
+             </ProtectedRoute>
+           }
+        >
+          <Route index element={<Navigate to="employees" replace />} />
+          <Route path="employees" element={<Employees />} />
+          <Route path="managers" element={<Managers />} />
+          <Route path="holidays" element={<Holidays />} />
+          <Route path="leaves" element={<Leaves />} />
+          <Route path="daily-report" element={<DailyReport />} />
+          <Route path="weekly-report" element={<WeeklyReport />} />
+          <Route path="monthly-report" element={<MonthlyReport />} />
+        </Route>
 
         <Route
           path="/employee"
